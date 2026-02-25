@@ -14,23 +14,7 @@ import WeatherPopup from '@/components/WeatherPopup'
 import { fetchWeatherData } from '@/lib/weather'
 
 export default function ProductsPage() {
-    // ==================== CLIENT SIDE CHECK ====================
-    const [isClient, setIsClient] = useState(false)
-
-    useEffect(() => {
-        setIsClient(true)
-    }, [])
-
-    // إذا كان لسه في مرحلة بناء السيرفر، اعرض صفحة فارغة أو loading
-    if (!isClient) {
-        return (
-            <div className="min-h-screen bg-darkwhite flex items-center justify-center">
-                <div className="text-gold">جاري التحميل...</div>
-            </div>
-        )
-    }
-
-    // ==================== HOOKS ====================
+    // ==================== HOOKS FIRST ====================
     const router = useRouter()
     const searchParams = useSearchParams()
     const tableContainerRef = useRef<HTMLDivElement>(null)
@@ -38,6 +22,8 @@ export default function ProductsPage() {
     const floatingTableHeaderRef = useRef<HTMLDivElement>(null)
 
     // ==================== STATES ====================
+    const [isClient, setIsClient] = useState(false)
+    const [imagesLoaded, setImagesLoaded] = useState(false)
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingProduct, setEditingProduct] = useState<any>(null)
     const [isDateExpanded, setIsDateExpanded] = useState(false)
@@ -54,6 +40,11 @@ export default function ProductsPage() {
 
     // Autocomplete state
     const [searchSuggestions, setSearchSuggestions] = useState<any[]>([])
+    const [showAutocomplete, setShowAutocomplete] = useState(false)
+
+    // ==================== LANGUAGE ====================
+    const [language, setLanguage] = useState<Language>('ar')
+    const t = translations[language]
 
     // ==================== URL PARAMS ====================
     const search = searchParams.get('search') || ''
@@ -80,21 +71,57 @@ export default function ProductsPage() {
 
     const config = tableConfigs.products
 
+    // ==================== UNIQUE CATEGORIES ====================
     const uniqueCategories = Array.from(new Set(
         data
             .map(p => p.category)
             .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
     ))
 
-    // ==================== LANGUAGE ====================
-    const [language, setLanguage] = useState<Language>('ar')
-    const t = translations[language]
+    // ==================== EFFECTS ====================
+    useEffect(() => {
+        setIsClient(true)
+
+        const imageUrls = [
+            '/assets/images/cloud.svg',
+            '/assets/images/left.svg',
+            '/assets/images/right.svg',
+            '/assets/images/search.ico',
+            '/assets/images/add.png',
+            '/assets/images/ERP.svg',
+            '/assets/images/BG.png'
+        ]
+
+        let loadedCount = 0
+        const totalImages = imageUrls.length
+
+        imageUrls.forEach(url => {
+            const img = new window.Image()
+            img.src = url
+            img.onload = () => {
+                loadedCount++
+                if (loadedCount === totalImages) {
+                    setImagesLoaded(true)
+                }
+            }
+            img.onerror = () => {
+                loadedCount++
+                if (loadedCount === totalImages) {
+                    setImagesLoaded(true)
+                }
+            }
+        })
+    }, [])
 
     useEffect(() => {
-        const savedLang = localStorage.getItem('preferred-language') as Language || 'ar'
-        setLanguage(savedLang)
-        document.documentElement.lang = savedLang
-        document.documentElement.dir = savedLang === 'ar' ? 'rtl' : 'ltr'
+        try {
+            const savedLang = localStorage.getItem('preferred-language') as Language || 'ar'
+            setLanguage(savedLang)
+            document.documentElement.lang = savedLang
+            document.documentElement.dir = savedLang === 'ar' ? 'rtl' : 'ltr'
+        } catch (e) {
+            console.log('localStorage not available')
+        }
     }, [])
 
     // ==================== WEATHER ====================
@@ -116,11 +143,17 @@ export default function ProductsPage() {
     useEffect(() => {
         const handleTableScroll = () => {
             if (tableContainerRef.current) {
-                setTableScrollLeft(tableContainerRef.current.scrollLeft)
+                const newScrollLeft = tableContainerRef.current.scrollLeft
+                setTableScrollLeft(newScrollLeft)
 
                 const { scrollLeft, scrollWidth, clientWidth } = tableContainerRef.current
                 setShowLeftScroll(scrollLeft > 10)
                 setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10)
+
+                // تحديث موضع الهيدر العائم مباشرة مع التمرير
+                if (floatingTableHeaderRef.current) {
+                    floatingTableHeaderRef.current.style.transform = `translateX(-${newScrollLeft}px)`
+                }
             }
         }
 
@@ -132,17 +165,11 @@ export default function ProductsPage() {
         }
     }, [data])
 
-    // Update floating header position
-    useEffect(() => {
-        if (floatingTableHeaderRef.current) {
-            floatingTableHeaderRef.current.style.transform = `translateX(-${tableScrollLeft}px)`
-        }
-    }, [tableScrollLeft])
-
     // ==================== SEARCH ====================
     const searchProducts = async (input: string) => {
         if (input.length < 2) {
             setSearchSuggestions([])
+            setShowAutocomplete(false)
             return
         }
 
@@ -153,6 +180,17 @@ export default function ProductsPage() {
             .limit(5)
 
         setSearchSuggestions(data || [])
+        setShowAutocomplete(true)
+    }
+
+    const handleSearchBlur = () => {
+        setTimeout(() => setShowAutocomplete(false), 200)
+    }
+
+    const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+        if (e.key === 'Enter') {
+            setShowAutocomplete(false)
+        }
     }
 
     const applyFilters = (formData: FormData) => {
@@ -173,6 +211,7 @@ export default function ProductsPage() {
         if (lowStockVal) params.set('lowStock', lowStockVal)
 
         router.push(`/products?${params.toString()}`)
+        setShowAutocomplete(false)
     }
 
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -187,7 +226,11 @@ export default function ProductsPage() {
         setLanguage(newLang)
         document.documentElement.lang = newLang
         document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr'
-        localStorage.setItem('preferred-language', newLang)
+        try {
+            localStorage.setItem('preferred-language', newLang)
+        } catch (e) {
+            console.log('localStorage not available')
+        }
     }
 
     // ==================== MODAL HANDLERS ====================
@@ -225,7 +268,6 @@ export default function ProductsPage() {
     }
 
     // ==================== DATE FORMATTING ====================
-    // ✅ تم نقل الـ Date داخل return مع التحقق من isClient
     const now = new Date()
     const timeString = now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
         hour: '2-digit',
@@ -243,6 +285,36 @@ export default function ProductsPage() {
         month: 'long',
         day: 'numeric'
     })
+
+    // ==================== RETURN CONDITION ====================
+    if (!isClient || !imagesLoaded) {
+        return (
+            <div
+                className="min-h-screen flex items-center justify-center"
+                style={{
+                    backgroundImage: "url('/assets/images/BG.png')",
+                    backgroundSize: 'cover',
+                    backgroundPosition: 'center',
+                    backgroundAttachment: 'fixed'
+                }}
+            >
+                <div className="bg-darkwhite/70 backdrop-blur-xl p-8 rounded-3xl shadow-2xl border border-gold/30">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="w-20 h-20 relative">
+                            <Image
+                                src="/assets/images/ERP.svg"
+                                alt="ERP"
+                                fill
+                                className="object-contain animate-pulse"
+                                priority
+                            />
+                        </div>
+                        <div className="text-gold font-alata text-xl animate-pulse">جاري التحميل...</div>
+                    </div>
+                </div>
+            </div>
+        )
+    }
 
     // ==================== ERROR STATE ====================
     if (error) {
@@ -281,9 +353,9 @@ export default function ProductsPage() {
             <div className="min-h-screen bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
 
                 {/* ==================== HEADER ==================== */}
-                <div className="relative w-full mb-4" style={{ minHeight: '100px' }}>
+                <div className="relative w-full mb-2" style={{ minHeight: '70px' }}>
                     {/* الوقت - يسار */}
-                    <div className="absolute left-0 top-0">
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2">
                         <div
                             className="relative"
                             onMouseEnter={() => setIsDateExpanded(true)}
@@ -305,6 +377,7 @@ export default function ProductsPage() {
                                                 width={20}
                                                 height={20}
                                                 className="w-5 h-5 object-contain"
+                                                priority
                                             />
                                         </button>
                                     </>
@@ -313,21 +386,22 @@ export default function ProductsPage() {
                         </div>
                     </div>
 
-                    {/* اللوجو - وسط ومرفوع للأعلى */}
-                    <div className="absolute left-1/2 top-0 -translate-x-1/2 -mt-8">
+                    {/* اللوجو - وسط في منتصف الارتفاع */}
+                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
                         <div className="flex items-center justify-center">
                             <Image
                                 src="/assets/images/ERP.svg"
                                 alt="ERP"
-                                width={200}
-                                height={200}
-                                className="w-40 h-40 md:w-44 md:h-44 object-contain"
+                                width={140}
+                                height={140}
+                                className="w-28 h-28 md:w-32 md:h-32 object-contain"
+                                priority
                             />
                         </div>
                     </div>
 
                     {/* اللغة - يمين */}
-                    <div className="absolute right-0 top-0">
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2">
                         <button
                             onClick={toggleLanguage}
                             className="px-3 py-1 rounded-full border border-gold/30 text-gold hover:bg-gold/40 hover:text-darkwhite transition-colors text-sm font-medium"
@@ -337,58 +411,59 @@ export default function ProductsPage() {
                     </div>
                 </div>
 
-                {/* عنوان الصفحة */}
-                <div className="mb-2 w-full mt-16">
+                {/* عنوان الصفحة - بدون مسافة كبيرة */}
+                <div className="mb-3 w-full">
                     <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t.products}</h1>
                 </div>
 
                 {/* ==================== SEARCH SECTION ==================== */}
                 <form onSubmit={handleSubmit} className="mb-6 w-full relative z-50">
-                    <div className="bg-[#1a1a1e]/90 backdrop-blur-xl rounded-xl border border-gold/30 p-3 shadow-xl">
-                        <div className="flex flex-wrap items-center gap-2">
-                            {/* Search field */}
-                            <div className="flex-1 min-w-[200px] relative">
+                    <div className="bg-[#1a1a1e]/90 backdrop-blur-xl rounded-xl border border-gold/30 p-2 shadow-xl">
+                        <div className="flex flex-wrap items-center gap-1">
+                            {/* Search field - بدون placeholder */}
+                            <div className="flex-1 min-w-[150px] relative">
                                 <div className="relative">
                                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-silver">
-                                        <span className="material-icons text-sm">search</span>
+                                        <span className="material-icons text-xs">search</span>
                                     </span>
                                     <input
                                         type="text"
                                         name="search"
                                         defaultValue={search}
                                         onChange={(e) => searchProducts(e.target.value)}
-                                        onBlur={() => setTimeout(() => setSearchSuggestions([]), 200)}
+                                        onBlur={handleSearchBlur}
+                                        onKeyDown={handleSearchKeyDown}
                                         placeholder=""
-                                        className="w-full pr-8 pl-2 py-2 bg-[#0a0a0c] border border-silver/30 rounded-full text-white text-xs focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-all hover:bg-[#1a1a1e]"
+                                        className="w-full pr-7 pl-1.5 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white text-xs focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-all hover:bg-[#1a1a1e]"
                                     />
                                 </div>
 
                                 {/* Autocomplete */}
-                                {searchSuggestions.length > 0 && (
+                                {showAutocomplete && searchSuggestions.length > 0 && (
                                     <div className="absolute z-[100] top-full mt-1 w-full bg-[#1a1a1e]/95 backdrop-blur-md border border-gold/30 rounded-xl shadow-2xl overflow-hidden">
                                         {searchSuggestions.map(item => (
                                             <div
                                                 key={item.product_id}
-                                                className="px-3 py-2 border-b border-silver/10 last:border-0 hover:bg-gold/40 cursor-pointer text-white text-xs transition-colors"
+                                                className="px-2 py-1.5 border-b border-silver/10 last:border-0 hover:bg-gold/40 cursor-pointer text-white text-[10px] transition-colors"
                                             >
                                                 <span>{item.name}</span>
-                                                <span className="text-gold text-[10px] mr-1">({item.product_id})</span>
+                                                <span className="text-gold text-[8px] mr-1">({item.product_id})</span>
                                             </div>
                                         ))}
                                     </div>
                                 )}
                             </div>
 
-                            {/* Search by select */}
+                            {/* Search by select - كاملة */}
                             <select
                                 name="searchBy"
                                 defaultValue={searchBy}
-                                className="px-2 py-2 bg-[#0a0a0c] border border-silver/30 rounded-full text-white hover:border-gold hover:bg-gold/40 focus:outline-none focus:border-gold text-xs appearance-none min-w-[60px] transition-all cursor-pointer"
+                                className="px-2 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white hover:border-gold hover:bg-gold/40 focus:outline-none focus:border-gold text-[11px] appearance-none min-w-[65px] transition-all cursor-pointer"
                                 style={{
                                     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20' stroke='%23DBA935'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
                                     backgroundPosition: 'left 0.5rem center',
                                     backgroundRepeat: 'no-repeat',
-                                    backgroundSize: '0.8rem',
+                                    backgroundSize: '0.7rem',
                                     paddingLeft: '1.5rem'
                                 }}
                             >
@@ -396,39 +471,39 @@ export default function ProductsPage() {
                                 <option value="code" className="bg-[#0a0a0c] text-white hover:bg-gold/40">Code</option>
                             </select>
 
-                            {/* Category select */}
+                            {/* Category select - كاملة */}
                             <select
                                 name="category"
                                 defaultValue={category}
-                                className="px-2 py-2 bg-[#0a0a0c] border border-silver/30 rounded-full text-white hover:border-gold hover:bg-gold/40 focus:outline-none focus:border-gold text-xs appearance-none min-w-[50px] transition-all cursor-pointer"
+                                className="px-2 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white hover:border-gold hover:bg-gold/40 focus:outline-none focus:border-gold text-[11px] appearance-none min-w-[70px] transition-all cursor-pointer"
                                 style={{
                                     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20' stroke='%23DBA935'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
                                     backgroundPosition: 'left 0.5rem center',
                                     backgroundRepeat: 'no-repeat',
-                                    backgroundSize: '0.8rem',
+                                    backgroundSize: '0.7rem',
                                     paddingLeft: '1.5rem'
                                 }}
                             >
-                                <option value="" className="bg-[#0a0a0c] text-white hover:bg-gold/40">Cat</option>
+                                <option value="" className="bg-[#0a0a0c] text-white hover:bg-gold/40">Category</option>
                                 {uniqueCategories.map((cat) => (
                                     <option key={cat} value={cat} className="bg-[#0a0a0c] text-white hover:bg-gold/40">{cat}</option>
                                 ))}
                             </select>
 
-                            {/* Quantity filter */}
+                            {/* Quantity filter - كاملة */}
                             <select
                                 name="lowStock"
                                 defaultValue={lowStock}
-                                className="px-2 py-2 bg-[#0a0a0c] border border-silver/30 rounded-full text-white hover:border-gold hover:bg-gold/40 focus:outline-none focus:border-gold text-xs appearance-none min-w-[50px] transition-all cursor-pointer"
+                                className="px-2 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white hover:border-gold hover:bg-gold/40 focus:outline-none focus:border-gold text-[11px] appearance-none min-w-[60px] transition-all cursor-pointer"
                                 style={{
                                     backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20' stroke='%23DBA935'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M6 8l4 4 4-4'/%3E%3C/svg%3E")`,
                                     backgroundPosition: 'left 0.5rem center',
                                     backgroundRepeat: 'no-repeat',
-                                    backgroundSize: '0.8rem',
+                                    backgroundSize: '0.7rem',
                                     paddingLeft: '1.5rem'
                                 }}
                             >
-                                <option value="" className="bg-[#0a0a0c] text-white hover:bg-gold/40">Qty</option>
+                                <option value="" className="bg-[#0a0a0c] text-white hover:bg-gold/40">Quantity</option>
                                 <option value="5" className="bg-[#0a0a0c] text-white hover:bg-gold/40">5</option>
                                 <option value="10" className="bg-[#0a0a0c] text-white hover:bg-gold/40">10</option>
                                 <option value="20" className="bg-[#0a0a0c] text-white hover:bg-gold/40">20</option>
@@ -436,37 +511,37 @@ export default function ProductsPage() {
                             </select>
 
                             {/* Price filter */}
-                            <div className="flex items-center gap-0.5 bg-[#0a0a0c] border border-silver/30 rounded-full px-2 py-1">
-                                <span className="text-silver text-[8px]">$</span>
+                            <div className="flex items-center gap-0.5 bg-[#0a0a0c] border border-silver/30 rounded-full px-1.5 py-1">
+                                <span className="text-silver text-[9px]">$</span>
                                 <input
                                     type="number"
                                     name="minPrice"
                                     defaultValue={minPrice}
                                     placeholder="0"
-                                    className="w-10 px-1 py-1 bg-transparent border border-silver/30 rounded-full text-white placeholder-silver/50 focus:outline-none focus:border-gold text-[8px]"
+                                    className="w-9 px-0.5 py-0.5 bg-transparent border border-silver/30 rounded-full text-white placeholder-silver/50 focus:outline-none focus:border-gold text-[9px]"
                                 />
-                                <span className="text-silver text-[8px]">-</span>
+                                <span className="text-silver text-[9px]">-</span>
                                 <input
                                     type="number"
                                     name="maxPrice"
                                     defaultValue={maxPrice}
                                     placeholder="0"
-                                    className="w-10 px-1 py-1 bg-transparent border border-silver/30 rounded-full text-white placeholder-silver/50 focus:outline-none focus:border-gold text-[8px]"
+                                    className="w-9 px-0.5 py-0.5 bg-transparent border border-silver/30 rounded-full text-white placeholder-silver/50 focus:outline-none focus:border-gold text-[9px]"
                                 />
                             </div>
 
                             {/* Search button */}
                             <button
                                 type="submit"
-                                className="w-7 h-7 bg-transparent rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors duration-200 flex-shrink-0"
+                                className="w-8 h-8 bg-transparent rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors duration-200 flex-shrink-0"
                                 title={t.search}
                             >
                                 <Image
                                     src="/assets/images/search.ico"
                                     alt="بحث"
-                                    width={18}
-                                    height={18}
-                                    className="w-4 h-4 object-contain"
+                                    width={20}
+                                    height={20}
+                                    className="w-5 h-5 object-contain"
                                 />
                             </button>
 
@@ -474,22 +549,22 @@ export default function ProductsPage() {
                             <button
                                 type="button"
                                 onClick={handleAdd}
-                                className="w-7 h-7 bg-transparent rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors duration-200 flex-shrink-0"
+                                className="w-8 h-8 bg-transparent rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors duration-200 flex-shrink-0"
                                 title={t.add}
                             >
                                 <Image
                                     src="/assets/images/add.png"
                                     alt="إضافة"
-                                    width={18}
-                                    height={18}
-                                    className="w-4 h-4 object-contain"
+                                    width={20}
+                                    height={20}
+                                    className="w-5 h-5 object-contain"
                                 />
                             </button>
                         </div>
                     </div>
                 </form>
 
-                {/* ==================== TABLE HEADER (FLOATING) ==================== */}
+                {/* ==================== TABLE HEADER (FLOATING) - متزامن تماماً ==================== */}
                 <div
                     ref={tableHeaderRef}
                     className="sticky top-0 z-40 overflow-hidden bg-[#1a1a1e]/90 backdrop-blur-md border border-gold/30 rounded-lg mb-2 shadow-lg"
@@ -500,15 +575,15 @@ export default function ProductsPage() {
                         className="inline-block min-w-full transition-transform duration-0"
                         style={{ transform: `translateX(-${tableScrollLeft}px)` }}
                     >
-                        <div className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30 p-1.5">
-                            <div className="grid grid-cols-8 gap-0.5 text-[9px] text-gold font-alata font-bold tracking-wide min-w-[650px]">
-                                <div className="col-span-1 text-center px-0.5">{t.productCode}</div>
-                                <div className="col-span-2 text-center px-0.5">{t.productName}</div>
-                                <div className="col-span-1 text-center px-0.5">{t.category}</div>
-                                <div className="col-span-1 text-center px-0.5">{t.sellPrice}</div>
-                                <div className="col-span-1 text-center px-0.5">{t.costPrice}</div>
-                                <div className="col-span-1 text-center px-0.5">{t.quantity}</div>
-                                <div className="col-span-1 text-center px-0.5">{t.unit}</div>
+                        <div className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30 p-1">
+                            <div className="grid grid-cols-8 gap-1 text-[12px] text-gold font-alata font-bold tracking-wide min-w-[700px]">
+                                <div className="col-span-1 text-center px-0.5 truncate">{t.productCode}</div>
+                                <div className="col-span-2 text-center px-0.5 truncate">{t.productName}</div>
+                                <div className="col-span-1 text-center px-0.5 truncate">{t.category}</div>
+                                <div className="col-span-1 text-center px-0.5 truncate">{t.sellPrice}</div>
+                                <div className="col-span-1 text-center px-0.5 truncate">{t.costPrice}</div>
+                                <div className="col-span-1 text-center px-0.5 truncate">{t.quantity}</div>
+                                <div className="col-span-1 text-center px-0.5 truncate">{t.unit}</div>
                             </div>
                         </div>
                     </div>
@@ -531,7 +606,7 @@ export default function ProductsPage() {
                                 tableName="products"
                                 columns={config.columns.map(col => ({
                                     ...col,
-                                    className: 'text-[8px] px-1 py-1'
+                                    className: 'text-[12px] px-1 py-1'
                                 }))}
                                 data={data}
                                 onEdit={handleEdit}
