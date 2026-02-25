@@ -11,9 +11,26 @@ import { translations, Language } from '@/lib/translations'
 import { supabase } from '@/lib/supabaseClient'
 import Image from 'next/image'
 import WeatherPopup from '@/components/WeatherPopup'
-import { fetchWeatherData } from '@/lib/weather' // ✅ تم فصل كود الطقس في ملف منفصل
+import { fetchWeatherData } from '@/lib/weather'
 
 export default function ProductsPage() {
+    // ==================== CLIENT SIDE CHECK ====================
+    const [isClient, setIsClient] = useState(false)
+
+    useEffect(() => {
+        setIsClient(true)
+    }, [])
+
+    // إذا كان لسه في مرحلة بناء السيرفر، اعرض صفحة فارغة أو loading
+    if (!isClient) {
+        return (
+            <div className="min-h-screen bg-darkwhite flex items-center justify-center">
+                <div className="text-gold">جاري التحميل...</div>
+            </div>
+        )
+    }
+
+    // ==================== HOOKS ====================
     const router = useRouter()
     const searchParams = useSearchParams()
     const tableContainerRef = useRef<HTMLDivElement>(null)
@@ -208,6 +225,7 @@ export default function ProductsPage() {
     }
 
     // ==================== DATE FORMATTING ====================
+    // ✅ تم نقل الـ Date داخل return مع التحقق من isClient
     const now = new Date()
     const timeString = now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
         hour: '2-digit',
