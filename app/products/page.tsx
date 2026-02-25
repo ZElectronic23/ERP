@@ -18,8 +18,6 @@ export default function ProductsPage() {
     const router = useRouter()
     const searchParams = useSearchParams()
     const tableContainerRef = useRef<HTMLDivElement>(null)
-    const tableHeaderRef = useRef<HTMLDivElement>(null)
-    const floatingTableHeaderRef = useRef<HTMLDivElement>(null)
 
     // ==================== STATES ====================
     const [isClient, setIsClient] = useState(false)
@@ -31,7 +29,6 @@ export default function ProductsPage() {
     // Table scroll states
     const [showLeftScroll, setShowLeftScroll] = useState(false)
     const [showRightScroll, setShowRightScroll] = useState(false)
-    const [tableScrollLeft, setTableScrollLeft] = useState(0)
 
     // Weather states
     const [isWeatherOpen, setIsWeatherOpen] = useState(false)
@@ -143,17 +140,9 @@ export default function ProductsPage() {
     useEffect(() => {
         const handleTableScroll = () => {
             if (tableContainerRef.current) {
-                const newScrollLeft = tableContainerRef.current.scrollLeft
-                setTableScrollLeft(newScrollLeft)
-
                 const { scrollLeft, scrollWidth, clientWidth } = tableContainerRef.current
                 setShowLeftScroll(scrollLeft > 10)
                 setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10)
-
-                // تحديث موضع الهيدر العائم مباشرة مع التمرير
-                if (floatingTableHeaderRef.current) {
-                    floatingTableHeaderRef.current.style.transform = `translateX(-${newScrollLeft}px)`
-                }
             }
         }
 
@@ -564,32 +553,7 @@ export default function ProductsPage() {
                     </div>
                 </form>
 
-                {/* ==================== TABLE HEADER (FLOATING) - متزامن تماماً ==================== */}
-                <div
-                    ref={tableHeaderRef}
-                    className="sticky top-0 z-40 overflow-hidden bg-[#1a1a1e]/90 backdrop-blur-md border border-gold/30 rounded-lg mb-2 shadow-lg"
-                    style={{ top: '0' }}
-                >
-                    <div
-                        ref={floatingTableHeaderRef}
-                        className="inline-block min-w-full transition-transform duration-0"
-                        style={{ transform: `translateX(-${tableScrollLeft}px)` }}
-                    >
-                        <div className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30 p-1">
-                            <div className="grid grid-cols-8 gap-1 text-[12px] text-gold font-alata font-bold tracking-wide min-w-[700px]">
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.productCode}</div>
-                                <div className="col-span-2 text-center px-0.5 truncate">{t.productName}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.category}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.sellPrice}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.costPrice}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.quantity}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.unit}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* ==================== TABLE ==================== */}
+                                {/* ==================== TABLE ==================== */}
                 <div className="relative w-full">
                     <div
                         ref={tableContainerRef}

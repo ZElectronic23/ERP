@@ -44,13 +44,13 @@ export default function DataTable({
     }
 
     function renderCell(value: any, type: string) {
-        if (value === null || value === undefined) return <span className="text-silver/60">—</span>
+        if (value === null || value === undefined) return <span className="text-silver/60 text-[12px]">—</span>
 
         switch (type) {
             case 'currency':
-                return <span className="text-white font-medium">{Number(value).toFixed(2)} ج.م</span>
+                return <span className="text-white text-[12px] font-medium">{Number(value).toFixed(2)} ج.م</span>
             case 'date':
-                return <span className="text-silver">{new Date(value).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}</span>
+                return <span className="text-silver text-[12px]">{new Date(value).toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US')}</span>
             case 'boolean':
                 return (
                     <span className="px-2 py-1 rounded-full text-xs bg-gold/20 text-gold font-medium">
@@ -58,23 +58,23 @@ export default function DataTable({
                     </span>
                 )
             case 'number':
-                return <span className="text-white font-medium">{Number(value).toLocaleString()}</span>
+                return <span className="text-white text-[12px] font-medium">{Number(value).toLocaleString()}</span>
             default:
-                return <span className="text-white">{String(value)}</span>
+                return <span className="text-white text-[12px]">{String(value)}</span>
         }
     }
 
     return (
-        <div className="bg-[#1a1a1e]/50 backdrop-blur-sm rounded-xl border border-silver/20 overflow-x-auto shadow-xl">
+        <div className="bg-[#1a1a1e]/50 backdrop-blur-sm rounded-xl border border-silver/20 shadow-xl">
             <table className="w-full min-w-[800px]">
-                <thead className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30">
-                    <tr className="text-sm">
+                <thead className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30 sticky top-0 z-20">
+                    <tr className="text-[12px]">
                         {columns.map((col) => (
-                            <th key={col.key} className="p-4 text-right font-alata font-bold text-gold tracking-wide">
+                            <th key={col.key} className="p-2 text-right font-alata font-bold text-gold tracking-wide">
                                 {getColumnLabel(col.key)}
                             </th>
                         ))}
-                        <th className="p-4 text-center font-alata font-bold text-gold tracking-wide">
+                        <th className="p-2 text-center font-alata font-bold text-gold tracking-wide">
                             {t.edit}
                         </th>
                     </tr>
@@ -87,11 +87,11 @@ export default function DataTable({
                             className="hover:bg-gold/40 transition-colors duration-200"
                         >
                             {columns.map((col) => (
-                                <td key={col.key} className="p-3">
+                                <td key={col.key} className="p-2">
                                     {renderCell(item[col.key], col.type)}
                                 </td>
                             ))}
-                            <td className="p-3">
+                            <td className="p-2">
                                 <TableActions
                                     item={item}
                                     onEdit={onEdit}
@@ -109,7 +109,7 @@ export default function DataTable({
             {data.length === 0 && (
                 <div className="p-12 text-center">
                     <span className="material-icons text-5xl text-silver/20 mb-3">inventory</span>
-                    <p className="text-silver/60">{t.noData}</p>
+                    <p className="text-silver/60 text-[12px]">{t.noData}</p>
                 </div>
             )}
         </div>
