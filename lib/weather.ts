@@ -23,11 +23,16 @@ const getWeatherCondition = (code: number, language: Language) => {
     return conditions[code]?.[language] || (language === 'ar' ? 'غير معروف' : 'Unknown')
 }
 
-// دالة جلب بيانات الطقس (مع معالجة الأخطاء)
+// دالة جلب بيانات الطقس مع معالجة أخطاء أفضل
 export const fetchWeatherData = async (language: Language) => {
     return new Promise(async (resolve, reject) => {
         if (!navigator.geolocation) {
-            reject(new Error('Geolocation not supported'))
+            reject({
+                error: true,
+                message: language === 'ar'
+                    ? 'متصفحك لا يدعم تحديد الموقع'
+                    : 'Your browser does not support geolocation'
+            })
             return
         }
 
@@ -42,29 +47,40 @@ export const fetchWeatherData = async (language: Language) => {
                     )
 
                     if (!weatherResponse.ok) {
-                        throw new Error('Weather API failed')
+                        reject({
+                            error: true,
+                            message: language === 'ar'
+                                ? 'فشل الاتصال بخدمة الطقس'
+                                : 'Failed to connect to weather service'
+                        })
+                        return
                     }
 
                     const weatherData = await weatherResponse.json()
 
                     // جلب اسم المدينة من OpenStreetMap
-                    const cityResponse = await fetch(
-                        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=${language}`,
-                        {
-                            headers: {
-                                'User-Agent': 'ZElectronics-ERP/1.0'
-                            }
-                        }
-                    )
-
                     let cityName = language === 'ar' ? 'موقعك الحالي' : 'Your location'
 
-                    if (cityResponse.ok) {
-                        const cityData = await cityResponse.json()
-                        cityName = cityData.address?.city ||
-                            cityData.address?.town ||
-                            cityData.address?.village ||
-                            cityName
+                    try {
+                        const cityResponse = await fetch(
+                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=${language}`,
+                            {
+                                headers: {
+                                    'User-Agent': 'ZElectronics-ERP/1.0 (contact@zelectronic.com)'
+                                }
+                            }
+                        )
+
+                        if (cityResponse.ok) {
+                            const cityData = await cityResponse.json()
+                            cityName = cityData.address?.city ||
+                                cityData.address?.town ||
+                                cityData.address?.village ||
+                                cityData.address?.county ||
+                                cityName
+                        }
+                    } catch (cityError) {
+                        console.log('City fetch failed, using default location')
                     }
 
                     // تحويل كود الطقس
@@ -72,6 +88,7 @@ export const fetchWeatherData = async (language: Language) => {
                     const condition = getWeatherCondition(weatherCode, language)
 
                     resolve({
+                        error: false,
                         temp: Math.round(weatherData.current_weather.temperature),
                         condition: condition,
                         windSpeed: weatherData.current_weather.windspeed,
@@ -80,23 +97,21 @@ export const fetchWeatherData = async (language: Language) => {
 
                 } catch (error) {
                     console.error('Weather fetch error:', error)
-                    // بيانات افتراضية في حالة الفشل
-                    resolve({
-                        temp: 25,
-                        condition: language === 'ar' ? 'مشمس' : 'Sunny',
-                        windSpeed: 10,
-                        location: language === 'ar' ? 'القاهرة' : 'Cairo'
+                    reject({
+                        error: true,
+                        message: language === 'ar'
+                            ? 'حدث خطأ في الاتصال، الرجاء المحاولة مرة أخرى'
+                            : 'Connection error, please try again'
                     })
                 }
             },
             (error) => {
                 console.error('Geolocation error:', error)
-                // بيانات افتراضية في حالة رفض الموقع
-                resolve({
-                    temp: 25,
-                    condition: language === 'ar' ? 'مشمس' : 'Sunny',
-                    windSpeed: 10,
-                    location: language === 'ar' ? 'القاهرة' : 'Cairo'
+                reject({
+                    error: true,
+                    message: language === 'ar'
+                        ? 'فشل تحديد الموقع، الرجاء التحقق من صلاحيات الموقع'
+                        : 'Failed to get location, please check location permissions'
                 })
             }
         )
