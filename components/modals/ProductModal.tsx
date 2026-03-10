@@ -3,6 +3,9 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { translations, Language } from '@/lib/translations'
+import Image from 'next/image' // أضف هذا السطر
+import { v4 as uuidv4 } from 'uuid' // أضف هذا السطر
+import imageCompression from 'browser-image-compression' // أضف هذا السطر
 
 interface ProductModalProps {
     isOpen: boolean
@@ -25,6 +28,11 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
         stock_quantity: '0',
         unit: ''
     })
+
+    // حالات الصورة
+    const [imageFile, setImageFile] = useState<File | null>(null)
+    const [imagePreview, setImagePreview] = useState<string | null>(product?.image || null)
+    const [uploadingImage, setUploadingImage] = useState(false)
 
     const t = translations[language]
 
@@ -79,6 +87,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                 stock_quantity: product.stock_quantity || '0',
                 unit: product.unit || ''
             })
+            setImagePreview(product.image || null) // تعيين معاينة الصورة
         }
     }, [product])
 
@@ -113,11 +122,64 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
         setProductSuggestions(data || [])
     }
 
+    // دوال رفع الصورة
+    const uploadImage = async (file: File): Promise<string | null> => {
+        try {
+            setUploadingImage(true)
+            const options = { maxSizeMB: 1, maxWidthOrHeight: 1024, useWebWorker: true }
+            const compressedFile = await imageCompression(file, options)
+            const fileExt = file.name.split('.').pop()
+            const fileName = `${uuidv4()}.${fileExt}`
+            const filePath = `products/${fileName}`
+
+            const { error: uploadError } = await supabase.storage
+                .from('products')
+                .upload(filePath, compressedFile, { cacheControl: '3600', upsert: false })
+
+            if (uploadError) throw uploadError
+
+            const { data: urlData } = supabase.storage.from('products').getPublicUrl(filePath)
+            return urlData.publicUrl
+        } catch (error) {
+            console.error('Error uploading image:', error)
+            return null
+        } finally {
+            setUploadingImage(false)
+        }
+    }
+
+    const handleImageChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0]
+        if (!file) return
+        if (!file.type.startsWith('image/')) {
+            alert('الرجاء اختيار صورة صالحة')
+            return
+        }
+
+        // عرض معاينة
+        const reader = new FileReader()
+        reader.onloadend = () => {
+            setImagePreview(reader.result as string)
+        }
+        reader.readAsDataURL(file)
+        setImageFile(file)
+    }
+
     if (!isOpen) return null
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
+
+        let imageUrl = product?.image || null
+        if (imageFile) {
+            imageUrl = await uploadImage(imageFile)
+            if (!imageUrl) {
+                alert('فشل رفع الصورة')
+                setLoading(false)
+                return
+            }
+        }
 
         const productData = {
             product_id: formData.product_id,
@@ -127,6 +189,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
             cost_price: formData.cost_price ? parseFloat(formData.cost_price) : null,
             stock_quantity: parseInt(formData.stock_quantity) || 0,
             unit: formData.unit || null,
+            image: imageUrl, // إضافة حقل الصورة
         }
 
         let error = null
@@ -181,6 +244,44 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
 
                 {/* جسم المودال - الفورم */}
                 <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                    {/* حقل الصورة */}
+                    <div className="flex items-center gap-3 pb-2">
+                        <div className="w-20 h-20 rounded-lg overflow-hidden border-2 border-gold/50 bg-[#0a0a0c] flex items-center justify-center">
+                            {imagePreview ? (
+                                <Image
+                                    src={imagePreview}
+                                    alt="Product"
+                                    width={80}
+                                    height={80}
+                                    className="w-full h-full object-cover"
+                                />
+                            ) : (
+                                <Image
+                                    src="/assets/images/product.svg"
+                                    alt="No image"
+                                    width={40}
+                                    height={40}
+                                    className="opacity-50"
+                                />
+                            )}
+                        </div>
+                        <div className="flex-1">
+                            <label className="block text-silver text-sm mb-1">
+                                {language === 'ar' ? 'صورة المنتج' : 'Product Image'}
+                            </label>
+                            <input
+                                type="file"
+                                accept="image/*"
+                                onChange={handleImageChange}
+                                className="text-xs text-silver file:mr-2 file:py-1 file:px-3 file:rounded-full file:border-0 file:text-xs file:bg-gold file:text-darkwhite hover:file:bg-yellow-600 transition-colors"
+                            />
+                            {uploadingImage && <p className="text-gold text-xs mt-1">جاري رفع الصورة...</p>}
+                            <p className="text-silver/50 text-xs mt-1">
+                                {language === 'ar' ? 'اختر صورة (سيتم ضغطها تلقائياً)' : 'Choose an image (will be compressed)'}
+                            </p>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className="block text-silver mb-2">{t.productCode}</label>
@@ -320,7 +421,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                     <div className="flex gap-3 pt-4 border-t border-silver/20">
                         <button
                             type="submit"
-                            disabled={loading}
+                            disabled={loading || uploadingImage}
                             className="flex-1 px-4 py-2 bg-gold text-darkwhite rounded-lg font-bold hover:bg-yellow-600 transition disabled:opacity-50"
                         >
                             {loading ? t.loading : t.save}
