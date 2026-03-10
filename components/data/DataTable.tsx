@@ -1,5 +1,6 @@
 'use client';
 
+import { RefObject } from 'react'
 import TableActions from './TableActions'
 import { Column } from '@/config/tables'
 import { translations, Language } from '@/lib/translations'
@@ -14,6 +15,8 @@ interface DataTableProps {
     showDeleted?: boolean
     idColumn?: string
     language?: Language
+    // ref للهيدر — يُمرَّر من الصفحة الأم لربط الـ floating header
+    tableHeaderRef?: RefObject<HTMLTableSectionElement | null>
 }
 
 export default function DataTable({
@@ -24,12 +27,12 @@ export default function DataTable({
     onRestore,
     showDeleted = false,
     idColumn = 'product_id',
-    language = 'ar'
+    language = 'ar',
+    tableHeaderRef
 }: DataTableProps) {
 
     const t = translations[language]
 
-    // ترجمة أسماء الأعمدة
     const getColumnLabel = (key: string): string => {
         const translationMap: Record<string, string> = {
             'product_id': t.productCode,
@@ -67,14 +70,22 @@ export default function DataTable({
     return (
         <div className="bg-[#1a1a1e]/50 backdrop-blur-sm rounded-xl border border-silver/20 overflow-x-auto shadow-xl">
             <table className="w-full min-w-[800px]">
-                <thead className="sticky top-0 z-10 bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30">
+                {/*
+                    ⚠️ لا نستخدم sticky هنا لأنه يمنع التمرير الأفقي.
+                    بدلاً من ذلك، الصفحة الأم (products/page.tsx) تتحكم
+                    في الـ floating header عبر tableHeaderRef.
+                */}
+                <thead
+                    ref={tableHeaderRef}
+                    className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30"
+                >
                     <tr className="text-sm">
                         {columns.map((col) => (
-                            <th key={col.key} className="p-4 text-right font-alata font-bold text-gold tracking-wide">
+                            <th key={col.key} className="p-4 text-right font-alata font-bold text-gold tracking-wide whitespace-nowrap">
                                 {getColumnLabel(col.key)}
                             </th>
                         ))}
-                        <th className="p-4 text-center font-alata font-bold text-gold tracking-wide">
+                        <th className="p-4 text-center font-alata font-bold text-gold tracking-wide whitespace-nowrap">
                             {t.edit}
                         </th>
                     </tr>
