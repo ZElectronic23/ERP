@@ -1,10 +1,12 @@
 // config/tables.ts
-export type ColumnType = 'text' | 'number' | 'currency' | 'date' | 'boolean';
+export type ColumnType = 'text' | 'number' | 'currency' | 'date' | 'boolean' | 'image';
 
 export interface Column {
     key: string;
     label: string;
     type: ColumnType;
+    render?: (value: any, row: any) => React.ReactNode;
+    className?: string;
     searchable?: boolean;
     filterable?: boolean;
 }
@@ -12,7 +14,7 @@ export interface Column {
 export interface TableConfig {
     name: string;
     columns: Column[];
-    formFields: any[]; // هنحدده بعدين
+    formFields: any[];
 }
 
 export const tableConfigs: Record<string, TableConfig> = {

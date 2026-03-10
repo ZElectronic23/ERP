@@ -1,36 +1,33 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: [
-          {
-            key: 'X-Content-Type-Options',
-            value: 'nosniff',
-          },
-          {
-            key: 'X-Frame-Options',
-            value: 'DENY',
-          },
-          {
-            key: 'X-XSS-Protection',
-            value: '1; mode=block',
-          },
-          {
-            key: 'Referrer-Policy',
-            value: 'strict-origin-when-cross-origin',
-          },
-          {
-            key: 'Content-Security-Policy',
-            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self'; connect-src 'self' https://zgvdroiqiyaekciscjtd.supabase.co",
-          },
-        ],
-      },
-    ];
-  },
   images: {
-    domains: ['zgvdroiqiyaekciscjtd.supabase.co'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'api.dicebear.com',
+        pathname: '/7.x/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'zgvdroiqiyaekciscjtd.supabase.co',
+        pathname: '/storage/v1/object/public/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'ui-avatars.com',
+        pathname: '/api/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'github.com',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'api.open-meteo.com', // لإتاحة صور الطقس (إذا استخدمت أيقونات)
+        pathname: '/**',
+      },
+    ],
   },
 };
 

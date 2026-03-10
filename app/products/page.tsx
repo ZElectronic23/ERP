@@ -5,6 +5,7 @@ import { useDelete } from '@/hooks/useDelete'
 import DataTable from '@/components/data/DataTable'
 import ProductModal from '@/components/modals/ProductModal'
 import { tableConfigs } from '@/config/tables'
+import type { Column } from '@/config/tables'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useState, useEffect, useRef } from 'react'
 import { translations, Language } from '@/lib/translations'
@@ -12,9 +13,9 @@ import { supabase } from '@/lib/supabaseClient'
 import Image from 'next/image'
 import WeatherPopup from '@/components/WeatherPopup'
 import { fetchWeatherData } from '@/lib/weather'
+import UserMenu from '@/components/UserMenu'
 
 export default function ProductsPage() {
-    // ==================== HOOKS FIRST ====================
     const router = useRouter()
     const searchParams = useSearchParams()
     const tableContainerRef = useRef<HTMLDivElement>(null)
@@ -78,6 +79,24 @@ export default function ProductsPage() {
             .filter((cat): cat is string => Boolean(cat) && typeof cat === 'string')
     ))
 
+    // ==================== DATE FORMATTING ====================
+    const now = new Date()
+    const timeString = now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
+        hour: '2-digit',
+        minute: '2-digit'
+    })
+    const dayName = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' }).slice(0, 3)
+    const day = now.getDate().toString().padStart(2, '0')
+    const month = (now.getMonth() + 1).toString().padStart(2, '0')
+    const year = now.getFullYear().toString().slice(-2)
+    const shortDate = `${dayName} ${day}/${month}/${year}`
+    const fullDate = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+    })
+
     // ==================== EFFECTS ====================
     useEffect(() => {
         setIsClient(true)
@@ -89,7 +108,8 @@ export default function ProductsPage() {
             '/assets/images/search.ico',
             '/assets/images/add.png',
             '/assets/images/ERP.svg',
-            '/assets/images/BG.png'
+            '/assets/images/BG.png',
+            '/assets/images/product.svg'
         ]
 
         let loadedCount = 0
@@ -150,7 +170,6 @@ export default function ProductsPage() {
                 setShowLeftScroll(scrollLeft > 10)
                 setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10)
 
-                // تحديث موضع الهيدر العائم مباشرة مع التمرير
                 if (floatingTableHeaderRef.current) {
                     floatingTableHeaderRef.current.style.transform = `translateX(-${newScrollLeft}px)`
                 }
@@ -228,9 +247,7 @@ export default function ProductsPage() {
         document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr'
         try {
             localStorage.setItem('preferred-language', newLang)
-        } catch (e) {
-            console.log('localStorage not available')
-        }
+        } catch (e) { }
     }
 
     // ==================== MODAL HANDLERS ====================
@@ -267,26 +284,6 @@ export default function ProductsPage() {
         }
     }
 
-    // ==================== DATE FORMATTING ====================
-    const now = new Date()
-    const timeString = now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-    })
-
-    const dayName = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' }).slice(0, 3)
-    const day = now.getDate().toString().padStart(2, '0')
-    const month = (now.getMonth() + 1).toString().padStart(2, '0')
-    const year = now.getFullYear().toString().slice(-2)
-    const shortDate = `${dayName} ${day}/${month}/${year}`
-    const fullDate = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric'
-    })
-
-    // ==================== RETURN CONDITION ====================
     if (!isClient || !imagesLoaded) {
         return (
             <div
@@ -316,7 +313,6 @@ export default function ProductsPage() {
         )
     }
 
-    // ==================== ERROR STATE ====================
     if (error) {
         return (
             <div
@@ -336,7 +332,32 @@ export default function ProductsPage() {
         )
     }
 
-    // ==================== MAIN RENDER ====================
+    // تعريف الأعمدة مع عمود الصورة (الآن type 'image' معرف)
+    const imageColumn: Column = {
+        key: 'image',
+        label: language === 'ar' ? 'صورة' : 'Image',
+        type: 'image',
+        render: (value: any, row: any) => (
+            <div className="flex justify-center">
+                {row.image ? (
+                    <Image src={row.image} alt={row.name} width={30} height={30} className="rounded object-cover" />
+                ) : (
+                    <Image src="/assets/images/product.svg" alt="product" width={30} height={30} className="rounded object-cover opacity-70" />
+                )}
+            </div>
+        ),
+        className: 'text-center'
+    };
+
+    const columns: Column[] = [
+        imageColumn,
+        ...config.columns.map(col => ({
+            ...col,
+            type: col.type || 'text',
+            className: 'text-[12px] px-1 py-1'
+        }))
+    ];
+
     return (
         <div
             className="min-h-screen p-4 md:p-6"
@@ -347,14 +368,11 @@ export default function ProductsPage() {
                 backgroundAttachment: 'fixed'
             }}
             dir={language === 'ar' ? 'rtl' : 'ltr'}
-            suppressHydrationWarning
         >
-            {/* الطبقة الشفافة فوق الخلفية */}
             <div className="min-h-screen bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
 
                 {/* ==================== HEADER ==================== */}
                 <div className="relative w-full mb-2" style={{ minHeight: '70px' }}>
-                    {/* الوقت - يسار */}
                     <div className="absolute left-0 top-1/2 -translate-y-1/2">
                         <div
                             className="relative"
@@ -386,41 +404,37 @@ export default function ProductsPage() {
                         </div>
                     </div>
 
-                    {/* اللوجو - وسط في منتصف الارتفاع */}
                     <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <div className="flex items-center justify-center">
-                            <Image
-                                src="/assets/images/ERP.svg"
-                                alt="ERP"
-                                width={140}
-                                height={140}
-                                className="w-28 h-28 md:w-32 md:h-32 object-contain"
-                                priority
-                            />
-                        </div>
+                        <Image
+                            src="/assets/images/ERP.svg"
+                            alt="ERP"
+                            width={140}
+                            height={140}
+                            className="w-28 h-28 md:w-32 md:h-32 object-contain"
+                            priority
+                        />
                     </div>
 
-                    {/* اللغة - يمين */}
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2">
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2">
                         <button
                             onClick={toggleLanguage}
                             className="px-3 py-1 rounded-full border border-gold/30 text-gold hover:bg-gold/40 hover:text-darkwhite transition-colors text-sm font-medium"
                         >
                             {language === 'ar' ? 'EN' : 'AR'}
                         </button>
+
+                        <UserMenu language={language} onLanguageToggle={toggleLanguage} />
                     </div>
                 </div>
 
-                {/* عنوان الصفحة - بدون مسافة كبيرة */}
                 <div className="mb-3 w-full">
                     <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t.products}</h1>
                 </div>
 
-                {/* ==================== SEARCH SECTION ==================== */}
+                {/* Search and filters */}
                 <form onSubmit={handleSubmit} className="mb-6 w-full relative z-50">
                     <div className="bg-[#1a1a1e]/90 backdrop-blur-xl rounded-xl border border-gold/30 p-2 shadow-xl">
                         <div className="flex flex-wrap items-center gap-1">
-                            {/* Search field - بدون placeholder */}
                             <div className="flex-1 min-w-[150px] relative">
                                 <div className="relative">
                                     <span className="absolute right-2 top-1/2 -translate-y-1/2 text-silver">
@@ -437,8 +451,6 @@ export default function ProductsPage() {
                                         className="w-full pr-7 pl-1.5 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white text-xs focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-all hover:bg-[#1a1a1e]"
                                     />
                                 </div>
-
-                                {/* Autocomplete */}
                                 {showAutocomplete && searchSuggestions.length > 0 && (
                                     <div className="absolute z-[100] top-full mt-1 w-full bg-[#1a1a1e]/95 backdrop-blur-md border border-gold/30 rounded-xl shadow-2xl overflow-hidden">
                                         {searchSuggestions.map(item => (
@@ -454,7 +466,6 @@ export default function ProductsPage() {
                                 )}
                             </div>
 
-                            {/* Search by select - كاملة */}
                             <select
                                 name="searchBy"
                                 defaultValue={searchBy}
@@ -471,7 +482,6 @@ export default function ProductsPage() {
                                 <option value="code" className="bg-[#0a0a0c] text-white hover:bg-gold/40">Code</option>
                             </select>
 
-                            {/* Category select - كاملة */}
                             <select
                                 name="category"
                                 defaultValue={category}
@@ -490,7 +500,6 @@ export default function ProductsPage() {
                                 ))}
                             </select>
 
-                            {/* Quantity filter - كاملة */}
                             <select
                                 name="lowStock"
                                 defaultValue={lowStock}
@@ -510,7 +519,6 @@ export default function ProductsPage() {
                                 <option value="50" className="bg-[#0a0a0c] text-white hover:bg-gold/40">50</option>
                             </select>
 
-                            {/* Price filter */}
                             <div className="flex items-center gap-0.5 bg-[#0a0a0c] border border-silver/30 rounded-full px-1.5 py-1">
                                 <span className="text-silver text-[9px]">$</span>
                                 <input
@@ -530,7 +538,6 @@ export default function ProductsPage() {
                                 />
                             </div>
 
-                            {/* Search button */}
                             <button
                                 type="submit"
                                 className="w-8 h-8 bg-transparent rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors duration-200 flex-shrink-0"
@@ -545,7 +552,6 @@ export default function ProductsPage() {
                                 />
                             </button>
 
-                            {/* Add button */}
                             <button
                                 type="button"
                                 onClick={handleAdd}
@@ -564,11 +570,10 @@ export default function ProductsPage() {
                     </div>
                 </form>
 
-                {/* ==================== TABLE HEADER (FLOATING) - متزامن تماماً ==================== */}
+                {/* Table Header (Floating) */}
                 <div
                     ref={tableHeaderRef}
                     className="sticky top-0 z-40 overflow-hidden bg-[#1a1a1e]/90 backdrop-blur-md border border-gold/30 rounded-lg mb-2 shadow-lg"
-                    style={{ top: '0' }}
                 >
                     <div
                         ref={floatingTableHeaderRef}
@@ -576,7 +581,8 @@ export default function ProductsPage() {
                         style={{ transform: `translateX(-${tableScrollLeft}px)` }}
                     >
                         <div className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30 p-1">
-                            <div className="grid grid-cols-8 gap-1 text-[12px] text-gold font-alata font-bold tracking-wide min-w-[700px]">
+                            <div className="grid grid-cols-9 gap-1 text-[12px] text-gold font-alata font-bold tracking-wide min-w-[800px]">
+                                <div className="col-span-1 text-center px-0.5 truncate">{language === 'ar' ? 'صورة' : 'Image'}</div>
                                 <div className="col-span-1 text-center px-0.5 truncate">{t.productCode}</div>
                                 <div className="col-span-2 text-center px-0.5 truncate">{t.productName}</div>
                                 <div className="col-span-1 text-center px-0.5 truncate">{t.category}</div>
@@ -589,7 +595,7 @@ export default function ProductsPage() {
                     </div>
                 </div>
 
-                {/* ==================== TABLE ==================== */}
+                {/* Table */}
                 <div className="relative w-full">
                     <div
                         ref={tableContainerRef}
@@ -604,10 +610,7 @@ export default function ProductsPage() {
                         ) : (
                             <DataTable
                                 tableName="products"
-                                columns={config.columns.map(col => ({
-                                    ...col,
-                                    className: 'text-[12px] px-1 py-1'
-                                }))}
+                                columns={columns}
                                 data={data}
                                 onEdit={handleEdit}
                                 onDelete={(id) => softDelete(id, 'product_id')}
@@ -617,7 +620,6 @@ export default function ProductsPage() {
                         )}
                     </div>
 
-                    {/* Scroll buttons */}
                     <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 pointer-events-none flex justify-between px-1">
                         {showLeftScroll && (
                             <button
@@ -634,7 +636,6 @@ export default function ProductsPage() {
                                 />
                             </button>
                         )}
-
                         {showRightScroll && (
                             <button
                                 onClick={scrollRight}

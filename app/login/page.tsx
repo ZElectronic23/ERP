@@ -11,7 +11,6 @@ import { fetchWeatherData } from '@/lib/weather'
 export default function LoginPage() {
   const router = useRouter()
 
-  // ==================== STATES ====================
   const [isClient, setIsClient] = useState(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -19,16 +18,30 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [rememberMe, setRememberMe] = useState(false)
+  const [arabicWarning, setArabicWarning] = useState('')
 
-  // Weather states
   const [isWeatherOpen, setIsWeatherOpen] = useState(false)
   const [weatherData, setWeatherData] = useState<any>(null)
   const [weatherLoading, setWeatherLoading] = useState(false)
   const [isDateExpanded, setIsDateExpanded] = useState(false)
 
-  // ==================== LANGUAGE ====================
   const [language, setLanguage] = useState<Language>('ar')
   const t = translations[language]
+
+  const containsArabic = (text: string) => {
+    const arabicRegex = /[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/
+    return arabicRegex.test(text)
+  }
+
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value
+    setPassword(val)
+    if (containsArabic(val)) {
+      setArabicWarning('تحذير: كلمة المرور تحتوي على أحرف عربية، يفضل استخدام أحرف إنجليزية وأرقام ورموز')
+    } else {
+      setArabicWarning('')
+    }
+  }
 
   useEffect(() => {
     setIsClient(true)
@@ -42,7 +55,6 @@ export default function LoginPage() {
     }
   }, [])
 
-  // ==================== WEATHER ====================
   const openWeatherPopup = async () => {
     setIsWeatherOpen(true)
     setWeatherLoading(true)
@@ -52,24 +64,15 @@ export default function LoginPage() {
       setWeatherData(data)
     } catch (error: any) {
       console.error('Error in weather popup:', error)
-      // تمرير رسالة بسيطة للبوب أب بدلاً من الاكتفاء بعدم وجود بيانات
-      setWeatherData(
-        error && typeof error === 'object' && 'error' in error
-          ? error
-          : {
-              error: true,
-              message:
-                language === 'ar'
-                  ? 'تعذر جلب بيانات الطقس الآن'
-                  : 'Unable to fetch weather data right now',
-            },
-      )
+      setWeatherData({
+        error: true,
+        message: language === 'ar' ? 'تعذر جلب بيانات الطقس الآن' : 'Unable to fetch weather data right now',
+      })
     } finally {
       setWeatherLoading(false)
     }
   }
 
-  // ==================== TOGGLE LANGUAGE ====================
   const toggleLanguage = () => {
     const newLang = language === 'ar' ? 'en' : 'ar'
     setLanguage(newLang)
@@ -77,12 +80,16 @@ export default function LoginPage() {
     document.documentElement.dir = newLang === 'ar' ? 'rtl' : 'ltr'
     try {
       localStorage.setItem('preferred-language', newLang)
-    } catch (e) {
-      console.log('localStorage not available')
-    }
+    } catch (e) { }
   }
 
-  // ==================== HANDLE LOGIN ====================
+  const handleTechSupport = () => {
+    const message = language === 'ar'
+      ? 'محتاج مساعده في حساب ERP الخاص بي'
+      : 'I need help with my ERP account'
+    window.open(`https://wa.me/201004496397?text=${encodeURIComponent(message)}`, '_blank')
+  }
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -97,6 +104,24 @@ export default function LoginPage() {
       if (error) throw error
 
       if (data.user) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('status')
+          .eq('email', data.user.email)
+          .single()
+
+        if (userError) {
+          console.error('Error fetching user status:', userError)
+        } else if (userData.status !== 'active') {
+          await supabase.auth.signOut()
+          const errorMsg = language === 'ar'
+            ? 'حسابك معطل، يرجى التواصل مع الدعم الفني'
+            : 'Your account is deactivated, please contact support'
+          setError(errorMsg)
+          setLoading(false)
+          return
+        }
+
         if (rememberMe) {
           localStorage.setItem('remembered-email', email)
         } else {
@@ -117,15 +142,6 @@ export default function LoginPage() {
     }
   }
 
-  // ==================== TECH SUPPORT ====================
-  const handleTechSupport = () => {
-    const message = language === 'ar'
-      ? 'محتاج مساعده في حساب ERP الخاص بي'
-      : 'I need help with my ERP account'
-    window.open(`https://wa.me/201004496397?text=${encodeURIComponent(message)}`, '_blank')
-  }
-
-  // استرجاع البريد الإلكتروني المحفوظ
   useEffect(() => {
     const remembered = localStorage.getItem('remembered-email')
     if (remembered) {
@@ -134,7 +150,6 @@ export default function LoginPage() {
     }
   }, [])
 
-  // ==================== DATE FORMATTING ====================
   const now = new Date()
   const timeString = now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', {
     hour: '2-digit',
@@ -172,12 +187,9 @@ export default function LoginPage() {
       }}
       dir={language === 'ar' ? 'rtl' : 'ltr'}
     >
-      {/* طبقة شفافة فوق الخلفية - أقصر حجماً */}
       <div className="w-full max-w-[280px] bg-darkwhite/70 backdrop-blur-xl rounded-3xl shadow-2xl border border-white/10 p-2">
 
-        {/* ==================== HEADER ==================== */}
         <div className="flex justify-between items-center mb-0.5">
-          {/* الوقت والتاريخ والطقس */}
           <div className="relative">
             <div
               className="relative"
@@ -209,7 +221,6 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* زر اللغة */}
           <button
             onClick={toggleLanguage}
             className="px-1.5 py-0.5 rounded-full border border-gold/30 text-gold hover:bg-gold/40 hover:text-darkwhite transition-colors text-[8px] font-medium"
@@ -218,7 +229,6 @@ export default function LoginPage() {
           </button>
         </div>
 
-        {/* ==================== LOGO - ضعف الحجم ==================== */}
         <div className="flex justify-center my-0.5">
           <div className="relative w-72 h-72 md:w-80 md:h-80">
             <Image
@@ -231,16 +241,21 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ==================== ERROR MESSAGE ==================== */}
         {error && (
           <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-1 mb-0.5">
             <p className="text-red-400 text-[9px] text-center">{error}</p>
+            {error.includes('معطل') && (
+              <button
+                onClick={handleTechSupport}
+                className="mt-1 text-[8px] text-gold hover:underline w-full text-center"
+              >
+                {language === 'ar' ? 'تواصل مع الدعم الفني' : 'Contact Support'}
+              </button>
+            )}
           </div>
         )}
 
-        {/* ==================== LOGIN FORM ==================== */}
         <form onSubmit={handleLogin} className="space-y-1.5">
-          {/* Email Field */}
           <div>
             <label className="block text-silver text-[8px] mb-0.5">
               {language === 'ar' ? 'البريد الإلكتروني' : 'Email'}
@@ -251,11 +266,10 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               className="w-full px-1.5 py-1 bg-[#0a0a0c] border border-silver/30 rounded-xl text-white text-[9px] focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-all"
-              placeholder={language === 'ar' ? 'example@domain.com' : 'example@domain.com'}
+              placeholder="example@domain.com"
             />
           </div>
 
-          {/* Password Field - مع أيقونة عين */}
           <div>
             <label className="block text-silver text-[8px] mb-0.5">
               {language === 'ar' ? 'كلمة المرور' : 'Password'}
@@ -264,7 +278,7 @@ export default function LoginPage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={handlePasswordChange}
                 required
                 className="w-full px-1.5 py-1 bg-[#0a0a0c] border border-silver/30 rounded-xl text-white text-[9px] focus:outline-none focus:border-gold focus:ring-1 focus:ring-gold/20 transition-all"
                 placeholder="••••••••"
@@ -286,9 +300,11 @@ export default function LoginPage() {
                 )}
               </button>
             </div>
+            {arabicWarning && (
+              <p className="text-yellow-400 text-[8px] mt-1">{arabicWarning}</p>
+            )}
           </div>
 
-          {/* Remember Me & Tech Support */}
           <div className="flex justify-between items-center">
             <label className="flex items-center gap-1 cursor-pointer group">
               <div className="relative w-3 h-3">
@@ -299,8 +315,8 @@ export default function LoginPage() {
                   className="sr-only"
                 />
                 <div className={`w-3 h-3 border-2 rounded-md transition-all duration-200 ${rememberMe
-                    ? 'border-gold bg-gold'
-                    : 'border-silver/30 bg-transparent group-hover:border-gold/50'
+                  ? 'border-gold bg-gold'
+                  : 'border-silver/30 bg-transparent group-hover:border-gold/50'
                   }`}>
                   {rememberMe && (
                     <svg className="w-2 h-2 text-darkwhite absolute top-0.5 left-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -326,7 +342,6 @@ export default function LoginPage() {
             </button>
           </div>
 
-          {/* Login Button */}
           <button
             type="submit"
             disabled={loading}
@@ -343,13 +358,11 @@ export default function LoginPage() {
           </button>
         </form>
 
-        {/* ==================== FOOTER ==================== */}
         <p className="text-center text-silver/60 text-[6px] mt-1">
           {language === 'ar' ? 'جميع الحقوق محفوظة © 2020' : 'All rights reserved © 2020'}
         </p>
       </div>
 
-      {/* Weather Popup */}
       <WeatherPopup
         isOpen={isWeatherOpen}
         onClose={() => setIsWeatherOpen(false)}

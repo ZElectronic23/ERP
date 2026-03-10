@@ -86,11 +86,18 @@ export default function DataTable({
                             key={item[idColumn] || index}
                             className="hover:bg-gold/40 transition-colors duration-200"
                         >
-                            {columns.map((col) => (
-                                <td key={col.key} className="p-3">
-                                    {renderCell(item[col.key], col.type)}
-                                </td>
-                            ))}
+                            {columns.map((col) => {
+                                // استخدام render المخصص إذا وجد
+                                const cellContent = col.render
+                                    ? col.render(item[col.key], item)
+                                    : renderCell(item[col.key], col.type);
+
+                                return (
+                                    <td key={col.key} className={`p-3 ${col.className || ''}`}>
+                                        {cellContent}
+                                    </td>
+                                );
+                            })}
                             <td className="p-3">
                                 <TableActions
                                     item={item}

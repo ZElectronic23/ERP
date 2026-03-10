@@ -160,7 +160,7 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json()
-    console.log('PATCH request body:', body)
+    console.log('PATCH request body:', { ...body, password: body.password ? '***' : undefined })
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -200,7 +200,7 @@ export async function PATCH(request: Request) {
       { user_metadata: metadata }
     ).catch(e => console.error('Auth update error:', e))
 
-    // تحضير بيانات التحديث
+    // تحضير بيانات التحديث لجدول users
     const updateData: any = {
       full_name: body.user_metadata?.full_name,
       role_key: body.user_metadata?.role,
@@ -213,12 +213,23 @@ export async function PATCH(request: Request) {
       updateData.profile_image = body.user_metadata.profile_image
     }
 
-    if (body.user_metadata?.password) {
-      updateData.password_hash = await bcrypt.hash(body.user_metadata.password, 12)
-      await supabaseAdmin.auth.admin.updateUserById(
+    // ** معالجة كلمة المرور: دعم المصدرين (top-level أو داخل user_metadata) **
+    const newPassword = body.password || body.user_metadata?.password
+    if (newPassword) {
+      // تحديث كلمة المرور في جدول users
+      updateData.password_hash = await bcrypt.hash(newPassword, 12)
+
+      // تحديث كلمة المرور في Auth مع تسجيل الخطأ إن وجد
+      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
         user.entity_id,
-        { password: body.user_metadata.password }
-      ).catch(e => console.error('Auth password update error:', e))
+        { password: newPassword }
+      )
+
+      if (authUpdateError) {
+        console.error('❌ Auth password update error:', authUpdateError)
+        // اختيارياً: يمكنك إرجاع خطأ للعميل إذا كان فشل تحديث Auth مهماً
+        // return NextResponse.json({ error: 'Failed to update auth password' }, { status: 500 })
+      }
     }
 
     const { data: userData, error: userError } = await supabaseAdmin
