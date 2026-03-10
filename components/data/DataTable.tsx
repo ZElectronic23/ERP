@@ -67,7 +67,7 @@ export default function DataTable({
     return (
         <div className="bg-[#1a1a1e]/50 backdrop-blur-sm rounded-xl border border-silver/20 overflow-x-auto shadow-xl">
             <table className="w-full min-w-[800px]">
-                <thead className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30">
+                <thead className="sticky top-0 z-10 bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30">
                     <tr className="text-sm">
                         {columns.map((col) => (
                             <th key={col.key} className="p-4 text-right font-alata font-bold text-gold tracking-wide">
@@ -87,7 +87,6 @@ export default function DataTable({
                             className="hover:bg-gold/40 transition-colors duration-200"
                         >
                             {columns.map((col) => {
-                                // استخدام render المخصص إذا وجد
                                 const cellContent = col.render
                                     ? col.render(item[col.key], item)
                                     : renderCell(item[col.key], col.type);

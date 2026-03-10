@@ -18,9 +18,10 @@ import UserMenu from '@/components/UserMenu'
 export default function ProductsPage() {
     const router = useRouter()
     const searchParams = useSearchParams()
-    const tableContainerRef = useRef<HTMLDivElement>(null)
-    const tableHeaderRef = useRef<HTMLDivElement>(null)
-    const floatingTableHeaderRef = useRef<HTMLDivElement>(null)
+    const tableContainerRef = useRef<HTMLDivElement>(null) // للتمرير الرأسي فقط
+    const [showLeftScroll, setShowLeftScroll] = useState(false)
+    const [showRightScroll, setShowRightScroll] = useState(false)
+    const [tableScrollLeft, setTableScrollLeft] = useState(0)
 
     // ==================== STATES ====================
     const [isClient, setIsClient] = useState(false)
@@ -28,11 +29,6 @@ export default function ProductsPage() {
     const [isModalOpen, setIsModalOpen] = useState(false)
     const [editingProduct, setEditingProduct] = useState<any>(null)
     const [isDateExpanded, setIsDateExpanded] = useState(false)
-
-    // Table scroll states
-    const [showLeftScroll, setShowLeftScroll] = useState(false)
-    const [showRightScroll, setShowRightScroll] = useState(false)
-    const [tableScrollLeft, setTableScrollLeft] = useState(0)
 
     // Weather states
     const [isWeatherOpen, setIsWeatherOpen] = useState(false)
@@ -169,10 +165,6 @@ export default function ProductsPage() {
                 const { scrollLeft, scrollWidth, clientWidth } = tableContainerRef.current
                 setShowLeftScroll(scrollLeft > 10)
                 setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10)
-
-                if (floatingTableHeaderRef.current) {
-                    floatingTableHeaderRef.current.style.transform = `translateX(-${newScrollLeft}px)`
-                }
             }
         }
 
@@ -332,7 +324,6 @@ export default function ProductsPage() {
         )
     }
 
-    // تعريف الأعمدة مع عمود الصورة (الآن type 'image' معرف)
     const imageColumn: Column = {
         key: 'image',
         label: language === 'ar' ? 'صورة' : 'Image',
@@ -570,32 +561,7 @@ export default function ProductsPage() {
                     </div>
                 </form>
 
-                {/* Table Header (Floating) */}
-                <div
-                    ref={tableHeaderRef}
-                    className="sticky top-0 z-40 overflow-hidden bg-[#1a1a1e]/90 backdrop-blur-md border border-gold/30 rounded-lg mb-2 shadow-lg"
-                >
-                    <div
-                        ref={floatingTableHeaderRef}
-                        className="inline-block min-w-full transition-transform duration-0"
-                        style={{ transform: `translateX(-${tableScrollLeft}px)` }}
-                    >
-                        <div className="bg-gradient-to-b from-[#2a2a2e] to-[#1a1a1e] border-b-2 border-gold/30 p-1">
-                            <div className="grid grid-cols-9 gap-1 text-[12px] text-gold font-alata font-bold tracking-wide min-w-[800px]">
-                                <div className="col-span-1 text-center px-0.5 truncate">{language === 'ar' ? 'صورة' : 'Image'}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.productCode}</div>
-                                <div className="col-span-2 text-center px-0.5 truncate">{t.productName}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.category}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.sellPrice}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.costPrice}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.quantity}</div>
-                                <div className="col-span-1 text-center px-0.5 truncate">{t.unit}</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Table */}
+                {/* Table Container */}
                 <div className="relative w-full">
                     <div
                         ref={tableContainerRef}
@@ -620,6 +586,7 @@ export default function ProductsPage() {
                         )}
                     </div>
 
+                    {/* Scroll Buttons */}
                     <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 pointer-events-none flex justify-between px-1">
                         {showLeftScroll && (
                             <button

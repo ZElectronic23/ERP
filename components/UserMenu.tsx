@@ -232,7 +232,7 @@ export default function UserMenu({ language, onLanguageToggle }: UserMenuProps) 
 
                 {showUserMenu && (
                     <div
-                        className={`absolute top-full mt-2 w-56 bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-xl z-[1000] ${language === 'ar' ? 'left-0' : 'right-0'
+                        className={`absolute top-full mt-2 w-56 bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-xl z-[9999] ${language === 'ar' ? 'left-0' : 'right-0'
                             }`}
                     >
                         <div className="p-3 border-b border-silver/20">
