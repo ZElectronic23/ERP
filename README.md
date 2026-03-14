@@ -278,3 +278,5 @@ npm run dev
 
 **آخر تحديث:** 2026-03-11  
 **الإصدار:** 2.0.0 (Architecture Refactor)
+#   p r o j e c t - n e w  
+ 
