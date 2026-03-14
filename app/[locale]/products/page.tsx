@@ -102,7 +102,7 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         if (!container || !floatingHeader) return;
 
         const onContainerScroll = () => {
-            floatingHeader.scrollLeft = container.scrollLeft;
+            floatingHeader.scrollLeft == container.scrollLeft;
             const { scrollLeft, scrollWidth, clientWidth } = container;
             setShowLeftScroll(scrollLeft > 10);
             setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10);
@@ -284,10 +284,10 @@ export default function ProductsPage({ params }: ProductsPageProps) {
             style={{ backgroundImage: "url('/assets/images/BG.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
             dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
-            <Header /> {/* ✅ استخدام الهيدر الموحد */}
+
 
             <div className="p-4 md:p-6">
-                <div className="bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
+                <div className="bg-darkwhite/0 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
                     <div className="mb-3">
                         <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t('products')}</h1>
                     </div>

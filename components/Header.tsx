@@ -16,7 +16,9 @@ export default function Header() {
     const locale = pathname?.split('/')[1] || 'ar';
     const language = locale as 'ar' | 'en';
 
-    // حالة الوقت والتاريخ
+    // لا نظهر الهيدر في صفحة تسجيل الدخول
+    if (pathname?.includes('login')) return null;
+
     const [currentTime, setCurrentTime] = useState('');
     const [currentDate, setCurrentDate] = useState('');
     const [isDateExpanded, setIsDateExpanded] = useState(false);
@@ -24,7 +26,6 @@ export default function Header() {
     const [weatherData, setWeatherData] = useState<any>(null);
     const [weatherLoading, setWeatherLoading] = useState(false);
 
-    // تحديث الوقت كل دقيقة
     useEffect(() => {
         const updateDateTime = () => {
             const now = new Date();
@@ -57,44 +58,62 @@ export default function Header() {
         }
     };
 
-    const toggleLanguage = () => {
-        const newLocale = language === 'ar' ? 'en' : 'ar';
-        const newPath = pathname.replace(`/${language}`, `/${newLocale}`);
-        router.push(newPath);
-    };
-
     return (
         <>
-            <header className="sticky top-4 z-50 w-full px-4">
-                <div className="max-w-7xl mx-auto bg-[#1a1a1a]/80 backdrop-blur-md rounded-full border border-gold/30 shadow-lg px-6 py-2 flex items-center justify-between">
-                    {/* الوقت - يسار */}
-                    <div className="relative">
+            <header className="sticky top-0 z-50 w-full px-1 py-0">
+                {/* شبكة ثلاثية الأعمدة لتثبيت العناصر */}
+                <div className="grid grid-cols-3 items-center max-w-5xl mx-auto bg-black/10 backdrop-blur-sm rounded-full border border-gold/20 shadow-lg px-0 py-0 min-h-[40px] md:min-h-[44px]">
+                    {/* الجهة اليمنى: UserMenu ثم NotificationBell */}
+                    <div className="flex justify-start items-center gap-0">
+                        <div className="ms-1 sm:ms-2">
+                            <UserMenu />
+                        </div>
+                        <NotificationBell />
+                    </div>
+
+                    {/* اللوجو في المنتصف - خارج الديف قليلاً */}
+                    <div className="flex justify-center items-center -my-2 sm:-my-3">
+                        <Image
+                            src="/assets/images/ERP.svg"
+                            alt="ERP"
+                            width={90}
+                            height={90}
+                            className="w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 object-contain"
+                            priority
+                        />
+                    </div>
+
+                    {/* الجهة اليسرى: الوقت والطقس مع التاريخ عند hover */}
+                    <div className="flex justify-end items-center text-silver px-1">
                         <div
-                            className="flex items-center gap-1 text-silver cursor-pointer hover:border hover:border-gold/50 rounded-full px-2 py-1 transition-all"
+                            className="flex items-center gap-1 cursor-pointer hover:border hover:border-gold/50 rounded-full px-1 py-0 transition-all leading-8 sm:leading-9 md:leading-10"
                             onMouseEnter={() => setIsDateExpanded(true)}
                             onMouseLeave={() => setIsDateExpanded(false)}
                         >
-                            <span suppressHydrationWarning className="text-sm">{currentTime}</span>
+                            <span suppressHydrationWarning className="text-[0.7rem] sm:text-xs md:text-sm lg:text-base">
+                                {currentTime || '--:--'}
+                            </span>
                             {isDateExpanded && (
                                 <>
-                                    <span className="text-xs text-silver/80">{shortDate}</span>
-                                    <button onClick={openWeatherPopup} className="text-gold hover:text-yellow-500 transition-colors" title={fullDate}>
-                                        <Image src="/assets/images/cloud.svg" alt={t('weather')} width={20} height={20} className="w-5 h-5 object-contain" />
+                                    <span className="text-[0.55rem] sm:text-[0.65rem] md:text-xs text-silver/80">
+                                        {shortDate}
+                                    </span>
+                                    <button
+                                        onClick={openWeatherPopup}
+                                        className="text-gold hover:text-yellow-500 transition-colors"
+                                        title={fullDate}
+                                    >
+                                        <Image
+                                            src="/assets/images/cloud.svg"
+                                            alt={t('weather')}
+                                            width={14}
+                                            height={14}
+                                            className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4 object-contain"
+                                        />
                                     </button>
                                 </>
                             )}
                         </div>
-                    </div>
-
-                    {/* اللوجو - وسط */}
-                    <div className="flex items-center justify-center">
-                        <Image src="/assets/images/ERP.svg" alt="ERP" width={120} height={120} className="w-24 h-24 md:w-28 md:h-28 object-contain" priority />
-                    </div>
-
-                    {/* أيقونات اليمين: الإشعارات وصورة المستخدم */}
-                    <div className="flex items-center gap-3">
-                        <NotificationBell />
-                        <UserMenu />
                     </div>
                 </div>
             </header>

@@ -2,14 +2,13 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { supabase } from '@/lib/supabaseClient';
 import NotificationModal from './NotificationModal';
 
 interface Notification {
     id: string;
-    user_id: string; // ✅ إضافة الحقل المطلوب
+    user_id: string;
     title: string;
     message: string;
     type: 'info' | 'success' | 'warning' | 'error';
@@ -20,7 +19,6 @@ interface Notification {
 
 export default function NotificationBell() {
     const t = useTranslations();
-    const router = useRouter();
     const [isOpen, setIsOpen] = useState(false);
     const [notifications, setNotifications] = useState<Notification[]>([]);
     const [unreadCount, setUnreadCount] = useState(0);
@@ -30,14 +28,12 @@ export default function NotificationBell() {
     const [currentUserId, setCurrentUserId] = useState<string | null>(null);
     const bellRef = useRef<HTMLDivElement>(null);
 
-    // جلب معرف المستخدم الحالي مرة واحدة
     useEffect(() => {
         supabase.auth.getUser().then(({ data: { user } }) => {
             if (user) setCurrentUserId(user.id);
         });
     }, []);
 
-    // جلب الإشعارات
     const fetchNotifications = async () => {
         setLoading(true);
         const { data: { user } } = await supabase.auth.getUser();
@@ -57,7 +53,6 @@ export default function NotificationBell() {
         setLoading(false);
     };
 
-    // استماع للإشعارات الجديدة عبر Realtime
     useEffect(() => {
         fetchNotifications();
 
@@ -80,7 +75,6 @@ export default function NotificationBell() {
         };
     }, [currentUserId]);
 
-    // إغلاق القائمة عند النقر خارجها
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (bellRef.current && !bellRef.current.contains(event.target as Node)) {
@@ -142,7 +136,7 @@ export default function NotificationBell() {
             <div className="relative" ref={bellRef}>
                 <button
                     onClick={() => setIsOpen(!isOpen)}
-                    className="relative w-8 h-8 flex items-center justify-center hover:bg-gold/20 rounded-full transition-colors"
+                    className="relative w-10 h-10 flex items-center justify-center hover:bg-gold/20 rounded-full transition-colors p-0 m-0"
                     title={t('notifications')}
                 >
                     <Image
@@ -159,32 +153,32 @@ export default function NotificationBell() {
                     )}
                 </button>
 
-                {/* القائمة المنسدلة - تفتح لليسار (left-0) وتظهر تحت الأيقونة */}
+                {/* القائمة المنسدلة - عرض w-44 (176px) */}
                 {isOpen && (
                     <div
-                        className="absolute top-full mt-2 w-80 bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl z-[99999] left-0"
+                        className="absolute top-full mt-2 w-44 bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl z-[99999] inset-inline-end-0"
                         style={{ maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}
                     >
-                        <div className="p-3 border-b border-silver/20 flex justify-between items-center sticky top-0 bg-[#1a1a1e]">
-                            <h3 className="text-gold font-alata text-sm">
+                        <div className="p-2 border-b border-silver/20 flex justify-between items-center sticky top-0 bg-[#1a1a1e]">
+                            <h3 className="text-gold font-alata text-xs">
                                 {t('notifications')}
                             </h3>
                             {unreadCount > 0 && (
                                 <button
                                     onClick={markAllAsRead}
-                                    className="text-xs text-silver hover:text-gold transition-colors"
+                                    className="text-[10px] text-silver hover:text-gold transition-colors"
                                 >
                                     {t('markAllAsRead')}
                                 </button>
                             )}
                         </div>
-                        <div className="max-h-96 overflow-y-auto">
+                        <div className="max-h-80 overflow-y-auto">
                             {loading ? (
-                                <div className="p-4 text-center text-silver/60 text-xs">
+                                <div className="p-3 text-center text-silver/60 text-xs">
                                     {t('loading')}
                                 </div>
                             ) : notifications.length === 0 ? (
-                                <div className="p-4 text-center text-silver/60 text-xs">
+                                <div className="p-3 text-center text-silver/60 text-xs">
                                     {t('noNotifications')}
                                 </div>
                             ) : (
@@ -192,23 +186,23 @@ export default function NotificationBell() {
                                     <button
                                         key={notif.id}
                                         onClick={() => handleNotificationClick(notif)}
-                                        className={`w-full text-right p-3 border-b border-silver/10 last:border-0 hover:bg-gold/20 transition-colors ${!notif.is_read ? 'bg-gold/5' : ''
+                                        className={`w-full text-right p-2 border-b border-silver/10 last:border-0 hover:bg-gold/20 transition-colors ${!notif.is_read ? 'bg-gold/5' : ''
                                             }`}
                                     >
-                                        <div className="flex items-start gap-2">
-                                            <div className={`mt-1 w-2 h-2 rounded-full ${notif.type === 'success' ? 'bg-green-500' :
-                                                    notif.type === 'error' ? 'bg-red-500' :
-                                                        notif.type === 'warning' ? 'bg-yellow-500' :
-                                                            'bg-blue-500'
+                                        <div className="flex items-start gap-1.5">
+                                            <div className={`mt-1 w-1.5 h-1.5 rounded-full ${notif.type === 'success' ? 'bg-green-500' :
+                                                notif.type === 'error' ? 'bg-red-500' :
+                                                    notif.type === 'warning' ? 'bg-yellow-500' :
+                                                        'bg-blue-500'
                                                 }`} />
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-white text-sm font-semibold truncate">
+                                                <p className="text-white text-xs font-semibold truncate">
                                                     {notif.title}
                                                 </p>
-                                                <p className="text-silver/70 text-xs truncate">
+                                                <p className="text-silver/70 text-[10px] truncate">
                                                     {notif.message}
                                                 </p>
-                                                <p className="text-silver/50 text-[10px] mt-1">
+                                                <p className="text-silver/50 text-[8px] mt-0.5">
                                                     {new Date(notif.created_at).toLocaleDateString(
                                                         document.dir === 'rtl' ? 'ar-EG' : 'en-US',
                                                         { hour: '2-digit', minute: '2-digit' }
@@ -216,7 +210,7 @@ export default function NotificationBell() {
                                                 </p>
                                             </div>
                                             {!notif.is_read && (
-                                                <span className="w-2 h-2 bg-gold rounded-full" />
+                                                <span className="w-1.5 h-1.5 bg-gold rounded-full" />
                                             )}
                                         </div>
                                     </button>
@@ -227,7 +221,6 @@ export default function NotificationBell() {
                 )}
             </div>
 
-            {/* نافذة تفاصيل الإشعار */}
             {showModal && selectedNotification && (
                 <NotificationModal
                     notification={selectedNotification}
