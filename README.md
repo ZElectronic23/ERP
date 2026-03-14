@@ -1,103 +1,177 @@
-# Z.Electronic ERP System
+# نظام Z.Electronic ERP
 
-نظام إدارة الموارد المؤسسية المتكامل - Z.Electronic
+نظام إدارة الموارد المؤسسية المتكامل - Z.Electronic  
+**الإصدار:** 2.1.0 | **آخر تحديث:** 2026-03-15
 
-## 🎯 نظرة سريعة
+---
 
-- **التقنيات:** Next.js 16, TypeScript, Supabase, Tailwind CSS
-- **الهيكل:** Modular Architecture مع فصل كامل للمسؤوليات
-- **GitHub:** https://github.com/ZElectronic23/ERP.git
+## 🌟 نظرة عامة
+
+نظام ERP متكامل مبني باستخدام أحدث التقنيات لتلبية احتياجات الشركات الصغيرة والمتوسطة.  
+يدعم النظام اللغة العربية والإنجليزية بشكل كامل، مع واجهة مستخدم سلسة ومتجاوبة.
+
+---
+
+## ✨ المميزات الرئيسية
+
+- 🔐 **نظام مصادقة متكامل** (تسجيل دخول/خروج) مع Supabase Auth
+- 👥 **إدارة المستخدمين** (إضافة، تعديل، حذف ناعم، استعادة، تغيير الحالة)
+- 📦 **إدارة المنتجات** (قريباً: CRUD كامل مع الصور والتصنيفات)
+- 📊 **جداول بيانات متقدمة** (بحث، تصفية، ترتيب، تقسيم صفحات)
+- 🌐 **دعم كامل للغتين** العربية والإنجليزية (RTL/LTR)
+- 🎨 **واجهة مستخدم عصرية** (Dark Mode، تأثيرات blur، ألوان ذهبية وفضية)
+- 📱 **تصميم متجاوب** مع جميع أحجام الشاشات
+- 🖼️ **رفع الصور** (صور المنتجات، الصور الشخصية) مع ضغط تلقائي
+- 🔔 **نظام إشعارات فوري** باستخدام Supabase Realtime
+- 🔒 **أمان متقدم** (Service Role Key للخادم، RLS Policies، تشفير كلمات المرور)
+- 📞 **دعم فني عبر واتساب** مباشرة من التطبيق
+
+---
+
+## 🛠️ التقنيات المستخدمة
+
+- **Framework:** Next.js 16 (App Router)
+- **اللغة:** TypeScript
+- **قاعدة البيانات والمصادقة:** Supabase (PostgreSQL، Auth، Storage، Realtime)
+- **التصميم:** Tailwind CSS + Tailwind Forms/Typography
+- **الترجمة:** next-intl
+- **إدارة الحالة:** React Context API
+- **المكتبات المساعدة:** 
+  - `browser-image-compression` لضغط الصور
+  - `uuid` لإنشاء معرفات فريدة
+  - `bcrypt` لتشفير كلمات المرور (على الخادم)
+
+---
 
 ## 📂 هيكل المشروع
-
-```
 ERP/
 ├── app/
-│   ├── admin/users/           # صفحة إدارة المستخدمين
-│   │   ├── api/               # API routes للمستخدمين
-│   │   │   ├── route.ts       # GET, POST, PATCH
-│   │   │   ├── delete/        # حذف مستخدم
-│   │   │   ├── restore/       # استعادة مستخدم
-│   │   │   └── status/        # تغيير حالة
-│   │   └── page.tsx           # صفحة المستخدمين
-│   ├── products/              # صفحة المنتجات
-│   │   └── page.tsx
-│   ├── login/                 # صفحة تسجيل الدخول
-│   ├── dashboard/             # لوحة التحكم
-│   ├── layout.tsx             # Layout رئيسي مع AppProvider
-│   └── globals.css            # الأنماط العامة
+│ ├── (auth)/login/page.tsx # صفحة تسجيل الدخول
+│ ├── admin/users/ # إدارة المستخدمين
+│ │ ├── api/ # API endpoints
+│ │ │ ├── route.ts # GET, POST
+│ │ │ ├── [id]/route.ts # PATCH
+│ │ │ ├── delete/route.ts # DELETE (soft/hard)
+│ │ │ ├── restore/route.ts # POST restore
+│ │ │ └── status/route.ts # PATCH status
+│ │ └── page.tsx
+│ ├── products/ # إدارة المنتجات
+│ │ ├── page.tsx
+│ │ └── deleted/page.tsx
+│ ├── dashboard/page.tsx # لوحة التحكم
+│ ├── layout.tsx # Layout رئيسي مع الخلفية والهيدر
+│ ├── globals.css # أنماط CSS العامة
+│ └── not-found.tsx # صفحة 404
 │
 ├── components/
-│   ├── data/
-│   │   ├── DataTable.tsx      # جدول بيانات متكامل
-│   │   ├── TableActions.tsx   # أزرار الإجراءات
-│   │   ├── SearchFilter.tsx   # فلترة البحث
-│   │   └── Pagination.tsx     # تقسيم الصفحات
-│   ├── modals/
-│   │   └── ProductModal.tsx   # نافذة إضافة/تعديل منتج
-│   ├── auth/                  # مكونات المصادقة
-│   ├── ui/                    # مكونات UI أساسية
-│   ├── CategoryDropdown.tsx   # قائمة الفئات
-│   ├── UserMenu.tsx           # قائمة المستخدم
-│   ├── WeatherPopup.tsx       # نافذة الطقس
-│   └── PasswordStrengthMeter.tsx
-│
-├── lib/
-│   ├── api.ts                 # ✅ مكتبة API مركزية
-│   ├── supabaseClient.ts      # Supabase client
-│   ├── translations.ts        # الترجمات (ar/en)
-│   ├── imageUtils.ts          # معالجة الصور
-│   ├── weather.ts             # API الطقس
-│   └── auth-helpers.ts        # مساعدات المصادقة
+│ ├── data/
+│ │ ├── DataTable.tsx # جدول بيانات متكامل
+│ │ ├── Pagination.tsx # تقسيم الصفحات
+│ │ └── SearchFilter.tsx # فلترة البحث
+│ ├── modals/
+│ │ ├── ProductModal.tsx # نافذة إضافة/تعديل منتج
+│ │ └── EditUserModal.tsx # نافذة تعديل المستخدم
+│ ├── ui/
+│ │ ├── Dropdown.tsx # قائمة منسدلة عامة
+│ │ ├── CategoryDropdown.tsx # قائمة الفئات للمنتجات
+│ │ └── PasswordStrengthMeter.tsx # مؤشر قوة كلمة المرور
+│ ├── Header.tsx # الهيدر الموحد
+│ ├── NotificationBell.tsx # جرس الإشعارات مع القائمة
+│ ├── UserMenu.tsx # قائمة المستخدم
+│ ├── FloatingActions.tsx # الأزرار العائمة (واتساب + مساعد)
+│ └── AIChatModal.tsx # نافذة الدردشة مع المساعد
 │
 ├── hooks/
-│   ├── index.ts               # ✅ exports الموحدة
-│   ├── useTableData.ts        # جلب بيانات الجداول
-│   ├── useDelete.ts           # حذف/استعادة
-│   └── useUsers.ts            # ✅ إدارة المستخدمين
+│ ├── index.ts # تصدير موحد
+│ ├── useTableData.ts # جلب بيانات الجداول
+│ ├── useDelete.ts # عمليات الحذف والاستعادة
+│ └── useUsers.ts # إدارة المستخدمين
+│
+├── lib/
+│ ├── supabaseClient.ts # تهيئة Supabase
+│ ├── api.ts # دوال API مركزية
+│ ├── imageUtils.ts # دوال معالجة الصور
+│ ├── auth-helpers.ts # مساعدات المصادقة
+│ └── translations.ts # تكوين الترجمة
 │
 ├── contexts/
-│   └── AppContext.tsx         # ✅ Global state management
+│ └── AppContext.tsx # حالة التطبيق العامة
+│
+├── types/
+│ └── index.ts # تعريفات TypeScript
 │
 ├── config/
-│   └── tables.ts              # إعدادات الجداول
+│ ├── locales.ts # قائمة اللغات المدعومة
+│ └── tables.ts # إعدادات الجداول
 │
-└── public/assets/images/      # الصور الثابتة
-```
+├── messages/
+│ ├── ar.json # الترجمة العربية
+│ └── en.json # الترجمة الإنجليزية
+│
+├── public/
+│ └── assets/images/ # الصور الثابتة
+│ ├── ERP.svg
+│ ├── user.svg
+│ ├── notification.svg
+│ ├── AI.svg
+│ ├── Whatsapp.svg
+│ ├── cloud.svg
+│ ├── search.ico
+│ ├── add.png
+│ ├── left.svg
+│ ├── right.svg
+│ ├── delete.svg
+│ ├── product.svg
+│ └── BG.png
+│
+├── .env.local # متغيرات البيئة (لا ترفع)
+├── .gitignore
+├── package.json
+├── tailwind.config.ts
+├── next.config.ts
+└── README.md
 
-## 🔑 المميزات الرئيسية
+text
 
-### ✅ Architecture
-- **Modular Design:** كل ملف له مسؤولية واحدة
-- **Type Safety:** TypeScript صارم في كل مكان
-- **Error Handling:** معالجة شاملة للأخطاء
-- **Reusability:** مكونات ومكتبات قابلة لإعادة الاستخدام
+---
 
-### ✅ API Layer
-- **lib/api.ts:** مكتبة API مركزية موحدة
-- **معالجة أخطاء موحدة:** كل الـ API calls بنفس النمط
-- **Type Safety:** interfaces لكل الـ data types
+## 🚀 طريقة التشغيل السريع
 
-### ✅ State Management
-- **AppContext:** Global state للـ language, user, notifications
-- **Custom Hooks:** useUsers, useProducts, useTableData, useDelete
-- **Local Storage:** حفظ الإعدادات (language, dark mode)
+### 1. استنساخ المستودع
+```bash
+git clone https://github.com/ZElectronic23/ERP.git
+cd ERP
+2. تثبيت الاعتماديات
+bash
+npm install
+# أو
+yarn install
+3. إعداد متغيرات البيئة
+أنشئ ملف .env.local في المجلد الرئيسي:
 
-### ✅ Data Fetching
-- **useTableData:** جلب بيانات مع pagination, filtering, sorting
-- **useDelete:** حذف واستعادة مع error handling
-- **useUsers:** إدارة المستخدمين كاملة
+env
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+4. إعداد Supabase
+قم بإنشاء buckets في Storage:
 
-### ✅ UI Components
-- **DataTable:** جدول بيانات متكامل مع floating header
-- **Pagination:** تقسيم الصفحات مع اختيار العدد
-- **ProductModal:** نافذة إضافة/تعديل منتج مع رفع صور
+avatars (عام) - للصور الشخصية
 
-## 🛠️ الاستخدام
+products (عام) - لصور المنتجات
 
-### 1. استخدام API Library:
+فعّل RLS Policies على الجداول
 
-```typescript
+شغّل التطبيق لتجربة تسجيل الدخول.
+
+5. تشغيل خادم التطوير
+bash
+npm run dev
+افتح http://localhost:3000/ar للنسخة العربية.
+
+📖 أمثلة استخدام الـ API و Hooks
+استخدام api.ts (واجهة مركزية للـ API)
+ts
 import { api } from '@/lib/api';
 
 // جلب المستخدمين
@@ -107,176 +181,128 @@ if (response.success) {
 }
 
 // إنشاء منتج
-const result = await api.createProduct({
+const newProduct = await api.createProduct({
   name: 'منتج جديد',
   sell_price: 100,
+  cost_price: 70,
+  category: 'إلكترونيات',
 });
-```
+استخدام Custom Hooks
+tsx
+import { useUsers, useTableData } from '@/hooks';
 
-### 2. استخدام Custom Hooks:
-
-```typescript
-import { useUsers, useProducts, useTableData } from '@/hooks';
-
-// في المكون
 function UsersPage() {
   const { users, loading, createUser, deleteUser } = useUsers();
-  const { products, loading: productsLoading } = useProducts();
   
-  const { 
-    data, 
-    loading, 
-    currentPage, 
-    totalPages, 
-    setPage 
+  const {
+    data: products,
+    loading: productsLoading,
+    currentPage,
+    totalPages,
+    setPage
   } = useTableData('products', { limit: 25 });
-  
-  // استخدام مباشر
-  if (loading) return <Loading />;
-  
-  return <div>{users.map(...)}</div>;
-}
-```
 
-### 3. استخدام App Context:
+  if (loading || productsLoading) return <div>جاري التحميل...</div>;
 
-```typescript
-import { useApp } from '@/contexts/AppContext';
-
-function MyComponent() {
-  const { 
-    language, 
-    toggleLanguage, 
-    currentUser, 
-    showNotification,
-    isDarkMode,
-    toggleDarkMode 
-  } = useApp();
-  
-  // إظهار إشعار
-  showNotification('تم الحفظ بنجاح', 'success');
-  
-  return <div>...</div>;
-}
-```
-
-### 4. استخدام DataTable:
-
-```typescript
-import DataTable from '@/components/data/DataTable';
-import { tableConfigs } from '@/config/tables';
-
-function ProductsPage() {
-  const { data, loading } = useTableData('products');
-  
   return (
-    <DataTable
-      tableName="products"
-      columns={tableConfigs.products.columns}
-      data={data}
-      onEdit={handleEdit}
-      onDelete={handleDelete}
-      loading={loading}
-    />
-  );
-}
-```
-
-### 5. استخدام Pagination:
-
-```typescript
-import Pagination from '@/components/data/Pagination';
-
-function ProductsPage() {
-  const { 
-    data, 
-    currentPage, 
-    totalPages, 
-    totalCount,
-    setPage,
-    setLimit 
-  } = useTableData('products', { limit: 25 });
-  
-  return (
-    <>
-      <DataTable ... />
+    <div>
+      <DataTable data={users} />
       <Pagination
         currentPage={currentPage}
         totalPages={totalPages}
-        totalCount={totalCount}
-        limit={25}
         onPageChange={setPage}
-        onLimitChange={setLimit}
       />
-    </>
+    </div>
   );
 }
-```
+استخدام App Context
+tsx
+import { useApp } from '@/contexts/AppContext';
 
-## 🎨 نظام التصميم
+function MyComponent() {
+  const { language, toggleLanguage, showNotification } = useApp();
 
-### الألوان:
-```css
---gold: #DBA935       /* ذهبي */
---darkwhite: #3E3B3F  /* رمادي داكن */
---silver: #c0c0c0     /* فضي */
---bg-dark: #1a1a1a    /* خلفية داكنة */
---bg-card: #2a2a2a    /* خلفية البطاقات */
-```
+  const handleSave = () => {
+    showNotification('تم الحفظ بنجاح', 'success');
+  };
 
-## 🔐 الأمان
+  return (
+    <button onClick={toggleLanguage}>
+      {language === 'ar' ? 'English' : 'العربية'}
+    </button>
+  );
+}
+🎨 نظام الألوان (CSS Variables)
+css
+:root {
+  --background: #3E3B3F;
+  --foreground: #ffffff;
+  --gold: #DBA935;
+  --silver: #c0c0c0;
+}
+تستخدم في Tailwind عبر bg-gold, text-gold, border-gold/xx.
 
-### Environment Variables:
-```env
-NEXT_PUBLIC_SUPABASE_URL=your_url
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
-SUPABASE_SERVICE_ROLE_KEY=your_service_key
-```
+🔐 الأمان والإجراءات المتبعة
+✅ استخدام Service Role Key فقط في Server Components و API Routes (ليس في Client)
 
-### Best Practices:
-- ✅ استخدام Service Role Key فقط في server-side APIs
-- ✅ تشفير كلمات المرور (bcrypt)
-- ✅ معالجة جميع الأخطاء
-- ✅ Validate inputs قبل الحفظ
-- ✅ استخدام RLS Policies في Supabase
+✅ تشفير كلمات المرور باستخدام bcrypt عند إنشاء المستخدمين عبر API
 
-## 🚀 Quick Start
+✅ جميع الطلبات إلى Supabase من Client تستخدم anon key مع RLS Policies
 
-```bash
-# 1. Clone
-git clone https://github.com/ZElectronic23/ERP.git
+✅ التحقق من صحة المدخلات (Validation) قبل الحفظ
 
-# 2. Install
-npm install
+✅ معالجة الأخطاء بشكل شامل وعرض رسائل مناسبة للمستخدم
 
-# 3. Setup .env.local
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-SUPABASE_SERVICE_ROLE_KEY=...
+✅ حماية الصور باستخدام سياسات التخزين المناسبة
 
-# 4. Create Buckets in Supabase Storage:
-- avatars (Public)
-- products (Public)
+✅ المميزات المكتملة
+نظام مصادقة كامل (تسجيل دخول/خروج) مع Supabase Auth
 
-# 5. Run
-npm run dev
-```
+إدارة المستخدمين (CRUD + Soft Delete + استعادة)
 
-## 📝 ملاحظات هامة
+إدارة المنتجات الأساسية (عرض، بحث، تصفية)
 
-1. **قبل البدء:** تأكد من إنشاء buckets في Supabase
-2. **عند الخطأ:** راجع Console → Network → Response
-3. **للأداء:** استخدم React.memo() للمكونات الكبيرة
-4. **للصيانة:** كل ملف له مسؤولية واحدة فقط
+جداول بيانات متكاملة مع Pagination وترتيب
 
-## 📞 التواصل
+دعم كامل للغتين (العربية/الإنجليزية) مع RTL/LTR
 
-**GitHub:** https://github.com/ZElectronic23/ERP.git  
-**Support:** WhatsApp +20 100 449 6397
+واجهة مستخدم Dark Mode مع ألوان متناسقة
 
----
+رفع الصور وضغطها تلقائياً
 
-**آخر تحديث:** 2026-03-11  
-**الإصدار:** 2.0.0 (Architecture Refactor)
-#   p r o j e c t - n e w  
- 
+إشعارات فورية باستخدام Supabase Realtime
+
+أزرار عائمة (واتساب دعم فني + مساعد ذكي)
+
+صفحة 404 مخصصة
+
+🔄 المميزات قيد التطوير
+إدارة كاملة للمنتجات (إضافة، تعديل، حذف) مع الصور
+
+نظام المخزون والمستودعات (تتبع الكميات)
+
+إدارة العملاء والموردين
+
+نظام الفواتير الإلكترونية
+
+التقارير والإحصائيات المتقدمة
+
+نظام الصلاحيات والأدوار (RBAC)
+
+دفع إلكتروني وتكامل مع بوابات الدفع
+(auth) بدلاً منه، تأكد من عدم استخدامه
+أي صور غير مستخدمة في public/assets/images/	مثل صور قديمة لم تعد مشار إليها في الكود
+تنبيه: قبل الحذف، تأكد من أن أي ملف لا يتم استيراده في أي مكان آخر باستخدام البحث الشامل.
+
+📞 التواصل والدعم
+البريد الإلكتروني: z.electronic23@gmail.com
+
+واتساب: +20 100 449 6397
+
+GitHub: https://github.com/ZElectronic23/ERP.git
+
+📄 الترخيص
+هذا المشروع مرخص تحت رخصة MIT. يمكنك استخدامه وتعديله بحرية للأغراض التجارية والشخصية.
+
+شكراً لاستخدامك نظام Z.Electronic ERP!
+نتمنى لك تجربة ممتعة وفعالة. 😊
