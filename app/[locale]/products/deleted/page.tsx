@@ -2,6 +2,7 @@
 
 import { useState, useEffect, use } from 'react';
 import DataTable from '@/components/data/DataTable';
+import Header from '@/components/Header'; // ✅ استخدام الهيدر الموحد
 import { tableConfigs } from '@/config/tables';
 import type { Column } from '@/config/tables';
 import { supabase } from '@/lib/supabaseClient';
@@ -9,7 +10,7 @@ import Image from 'next/image';
 import WeatherPopup from '@/components/WeatherPopup';
 import { fetchWeatherData } from '@/lib/weather';
 import UserMenu from '@/components/UserMenu';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
 interface DeletedProductsPageProps {
@@ -20,7 +21,6 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
     const { locale } = use(params);
     const t = useTranslations();
     const router = useRouter();
-    const pathname = usePathname();
     const language = locale as 'ar' | 'en';
 
     const [data, setData] = useState<any[]>([]);
@@ -85,12 +85,6 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
         finally { setWeatherLoading(false); }
     };
 
-    const toggleLanguage = () => {
-        const newLocale = language === 'ar' ? 'en' : 'ar';
-        const newPath = pathname.replace(`/${locale}`, `/${newLocale}`);
-        router.push(newPath);
-    };
-
     const now = new Date();
     const timeString = now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
     const dayName = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' }).slice(0, 3);
@@ -143,61 +137,41 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
 
     return (
         <div
-            className="min-h-screen p-4 md:p-6"
+            className="min-h-screen"
             style={{ backgroundImage: "url('/assets/images/BG.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
             dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
-            <div className="min-h-screen bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
-                <div className="relative w-full mb-2" style={{ minHeight: '70px' }}>
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2">
-                        <div
-                            onMouseEnter={() => setIsDateExpanded(true)}
-                            onMouseLeave={() => setIsDateExpanded(false)}
-                            className="flex items-center gap-1 text-silver cursor-pointer hover:border hover:border-gold/50 rounded-full px-2 py-1 transition-all"
-                        >
-                            <span suppressHydrationWarning className="text-sm">{timeString}</span>
-                            {isDateExpanded && (
-                                <>
-                                    <span className="text-xs text-silver/80">{shortDate}</span>
-                                    <button onClick={openWeatherPopup} className="text-gold hover:text-yellow-500 transition-colors" title={fullDate}>
-                                        <Image src="/assets/images/cloud.svg" alt={t('weather')} width={20} height={20} className="w-5 h-5 object-contain" priority />
-                                    </button>
-                                </>
-                            )}
+            <Header />
+
+            <div className="p-4 md:p-6">
+                <div className="bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
+                    <div className="mb-3 flex justify-between items-center">
+                        <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t('deletedProducts')}</h1>
+                        <button onClick={() => router.push(`/${locale}/products`)} className="px-3 py-1 bg-gold/20 rounded-lg text-gold text-xs hover:bg-gold hover:text-darkwhite transition-colors">
+                            {t('backToProducts')}
+                        </button>
+                    </div>
+                    {error && (
+                        <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
+                            <p className="text-red-400 text-sm">{error}</p>
                         </div>
-                    </div>
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <Image src="/assets/images/ERP.svg" alt="ERP" width={140} height={140} className="w-28 h-28 md:w-32 md:h-32 object-contain" priority />
-                    </div>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2" style={{ zIndex: 99999 }}>
-                        <UserMenu />
-                    </div>
-                </div>
-                <div className="mb-3 flex justify-between items-center">
-                    <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t('deletedProducts')}</h1>
-                    <button onClick={() => router.push(`/${locale}/products`)} className="px-3 py-1 bg-gold/20 rounded-lg text-gold text-xs hover:bg-gold hover:text-darkwhite transition-colors">
-                        {t('backToProducts')}
-                    </button>
-                </div>
-                {error && (
-                    <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
-                        <p className="text-red-400 text-sm">{error}</p>
-                    </div>
-                )}
-                <div className="relative w-full">
-                    <div className="overflow-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent">
-                        <DataTable
-                            tableName="products"
-                            columns={columns}
-                            data={data}
-                            language={language}
-                            loading={loading}
-                            onRestore={handleRestore}
-                            showDeleted={true}
-                        />
+                    )}
+                    <div className="relative w-full">
+                        <div className="overflow-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent">
+                            <DataTable
+                                tableName="products"
+                                columns={columns}
+                                data={data}
+                                language={language}
+                                loading={loading}
+                                onRestore={handleRestore}
+                                showDeleted={true}
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
+
             <WeatherPopup isOpen={isWeatherOpen} onClose={() => setIsWeatherOpen(false)} weatherData={weatherData} loading={weatherLoading} language={language} />
         </div>
     );

@@ -111,5 +111,16 @@
     "image": "Image",
     "code": "Code",
     "name": "Name",
-    "price": "Price"
+    "price": "Price",
+    "whatsappSupport": "WhatsApp Support",
+    "aiAssistant": "AI Assistant",
+    "whatsappHelpMessage": "I need help with ERP",
+    "aiWelcome": "Hello! I'm your AI assistant for the {page} page. How can I help you today?",
+    "aiPlaceholder": "Type your question here...",
+    "send": "Send",
+    "aiError": "Sorry, an error occurred. Please try again.",
+    "notifications": "Notifications",
+    "notificationDetails": "Notification Details",
+    "viewDetails": "View Details",
+    "noNotifications": "No notifications"
 }

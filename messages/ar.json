@@ -111,5 +111,16 @@
     "image": "الصورة",
     "code": "الكود",
     "name": "الاسم",
-    "price": "السعر"
+    "price": "السعر",
+    "whatsappSupport": "الدعم عبر واتساب",
+    "aiAssistant": "المساعد الذكي",
+    "whatsappHelpMessage": "أحتاج مساعدة في ERP",
+    "aiWelcome": "مرحباً! أنا مساعدك الذكي لصفحة {page}. كيف يمكنني مساعدتك اليوم؟",
+    "aiPlaceholder": "اكتب سؤالك هنا...",
+    "aiError": "عذراً، حدث خطأ. حاول مرة أخرى.",
+    "send": "إرسال",
+    "notifications": "الإشعارات",
+    "notificationDetails": "تفاصيل الإشعار",
+    "viewDetails": "عرض التفاصيل",
+    "noNotifications": "لا توجد إشعارات"
 }

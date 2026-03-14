@@ -6,13 +6,12 @@ import { useDelete } from '@/hooks/useDelete';
 import DataTable from '@/components/data/DataTable';
 import ProductModal from '@/components/modals/ProductModal';
 import Pagination from '@/components/data/Pagination';
+import Header from '@/components/Header'; // ✅ استخدام الهيدر الموحد
 import { tableConfigs } from '@/config/tables';
 import type { Column } from '@/config/tables';
 import { useState, useEffect, useRef, useCallback, use } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
-import WeatherPopup from '@/components/WeatherPopup';
-import { fetchWeatherData } from '@/lib/weather';
 import UserMenu from '@/components/UserMenu';
 import CategoryDropdown from '@/components/CategoryDropdown';
 import Dropdown from '@/components/ui/Dropdown';
@@ -45,15 +44,14 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     const [imagesLoaded, setImagesLoaded] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<any>(null);
-    const [isDateExpanded, setIsDateExpanded] = useState(false);
-    const [isWeatherOpen, setIsWeatherOpen] = useState(false);
+    const [isWeatherOpen, setIsWeatherOpen] = useState(false); // قد لا نحتاجه الآن لكن نتركه
     const [weatherData, setWeatherData] = useState<any>(null);
     const [weatherLoading, setWeatherLoading] = useState(false);
     const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
     const [showAutocomplete, setShowAutocomplete] = useState(false);
     const autocompleteRef = useRef<HTMLDivElement>(null);
 
-    // ===== Pagination State =====
+    // ===== Pagination =====
     const [currentPage, setCurrentPage] = useState(1);
     const [pageLimit, setPageLimit] = useState(50);
     const [paginatedData, setPaginatedData] = useState<any[]>([]);
@@ -74,7 +72,6 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         data.map((p: any) => p.category).filter((c: any): c is string => Boolean(c))
     ));
 
-    // تحديث البيانات المعروضة عند تغيير الصفحة أو الحد
     useEffect(() => {
         const start = (currentPage - 1) * pageLimit;
         const end = start + pageLimit;
@@ -82,16 +79,6 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     }, [data, currentPage, pageLimit]);
 
     const totalPages = Math.ceil(data.length / pageLimit) || 1;
-
-    // ===== Time =====
-    const now = new Date();
-    const timeString = now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' });
-    const dayName = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' }).slice(0, 3);
-    const day = now.getDate().toString().padStart(2, '0');
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const year = now.getFullYear().toString().slice(-2);
-    const shortDate = `${dayName} ${day}/${month}/${year}`;
-    const fullDate = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     // ===== Init =====
     useEffect(() => {
@@ -108,38 +95,35 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         });
     }, []);
 
-    // ===== مزامنة التمرير الأفقي (محسّنة) =====
+    // ===== مزامنة التمرير الأفقي =====
     useEffect(() => {
         const container = tableContainerRef.current;
         const floatingHeader = floatingScrollRef.current;
         if (!container || !floatingHeader) return;
 
-        // مزامنة من container إلى floatingHeader
-        const handleContainerScroll = () => {
+        const onContainerScroll = () => {
             floatingHeader.scrollLeft = container.scrollLeft;
             const { scrollLeft, scrollWidth, clientWidth } = container;
             setShowLeftScroll(scrollLeft > 10);
             setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10);
         };
 
-        // مزامنة من floatingHeader إلى container
-        const handleFloatingScroll = () => {
+        const onFloatingScroll = () => {
             container.scrollLeft = floatingHeader.scrollLeft;
         };
 
-        container.addEventListener('scroll', handleContainerScroll, { passive: true });
-        floatingHeader.addEventListener('scroll', handleFloatingScroll, { passive: true });
+        container.addEventListener('scroll', onContainerScroll, { passive: true });
+        floatingHeader.addEventListener('scroll', onFloatingScroll, { passive: true });
 
-        // تهيئة
-        handleContainerScroll();
+        onContainerScroll();
 
         return () => {
-            container.removeEventListener('scroll', handleContainerScroll);
-            floatingHeader.removeEventListener('scroll', handleFloatingScroll);
+            container.removeEventListener('scroll', onContainerScroll);
+            floatingHeader.removeEventListener('scroll', onFloatingScroll);
         };
     }, []);
 
-    // مزامنة عروض الأعمدة بعد تحميل البيانات
+    // مزامنة عروض الأعمدة
     const syncColumnWidths = useCallback(() => {
         const origThs = tableHeaderRef.current?.querySelectorAll('th');
         const floatThs = floatingScrollRef.current?.querySelectorAll('th');
@@ -156,14 +140,10 @@ export default function ProductsPage({ params }: ProductsPageProps) {
 
     useEffect(() => {
         if (loading) return;
-        // تأخير صغير للتأكد من اكتمال عرض الجدول
-        const timer1 = setTimeout(syncColumnWidths, 150);
-        const timer2 = setTimeout(syncColumnWidths, 500);
-        return () => {
-            clearTimeout(timer1);
-            clearTimeout(timer2);
-        };
-    }, [data.length, loading, syncColumnWidths]); // نعتمد على data.length فقط
+        const t1 = setTimeout(syncColumnWidths, 150);
+        const t2 = setTimeout(syncColumnWidths, 500);
+        return () => { clearTimeout(t1); clearTimeout(t2); };
+    }, [data.length, loading, syncColumnWidths]);
 
     // ===== Autocomplete =====
     useEffect(() => {
@@ -177,14 +157,6 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
-
-    // ===== Weather =====
-    const openWeatherPopup = async () => {
-        setIsWeatherOpen(true); setWeatherLoading(true);
-        try { setWeatherData(await fetchWeatherData(language)); }
-        catch (e) { console.error(e); }
-        finally { setWeatherLoading(false); }
-    };
 
     // ===== Autocomplete Search =====
     const searchProducts = async (val: string) => {
@@ -230,12 +202,6 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         if (searchInputRef.current) searchInputRef.current.value = '';
     };
 
-    const toggleLanguage = () => {
-        const newLocale = language === 'ar' ? 'en' : 'ar';
-        const newPath = pathname.replace(`/${language}`, `/${newLocale}`);
-        router.push(newPath);
-    };
-
     const handleEdit = (p: any) => { setEditingProduct(p); setIsModalOpen(true); };
     const handleAdd = () => { setEditingProduct(null); setIsModalOpen(true); };
     const handleClose = () => { setIsModalOpen(false); setEditingProduct(null); };
@@ -271,11 +237,9 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         }))
     ];
 
-    // داخل ProductsPage
-
     const colLabels = columns.map(col => {
         const map: Record<string, Record<string, string>> = {
-            image: { ar: t('image'), en: t('image') }, // ✅ استخدام الترجمة
+            image: { ar: 'صورة', en: 'Image' },
             product_id: { ar: t('productCode'), en: t('productCode') },
             name: { ar: t('productName'), en: t('productName') },
             category: { ar: t('category'), en: t('category') },
@@ -316,270 +280,238 @@ export default function ProductsPage({ params }: ProductsPageProps) {
 
     return (
         <div
-            className="min-h-screen p-4 md:p-6"
+            className="min-h-screen"
             style={{ backgroundImage: "url('/assets/images/BG.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
             dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
-            <div className="min-h-screen bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
+            <Header /> {/* ✅ استخدام الهيدر الموحد */}
 
-                {/* ==================== HEADER ==================== */}
-                <div className="relative w-full mb-2" style={{ minHeight: '70px' }}>
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2">
+            <div className="p-4 md:p-6">
+                <div className="bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
+                    <div className="mb-3">
+                        <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t('products')}</h1>
+                    </div>
+
+                    {/* ==================== SEARCH BAR ==================== */}
+                    <form onSubmit={handleSubmit} className="mb-6 w-full" style={{ position: 'relative', zIndex: 50 }}>
+                        <div className="bg-[#1a1a1e]/90 backdrop-blur-xl rounded-xl border border-gold/30 p-2 shadow-xl">
+                            <div className="flex flex-wrap items-center gap-1">
+                                {/* Input + Autocomplete */}
+                                <div className="flex-1 min-w-[150px] relative">
+                                    <input
+                                        ref={searchInputRef}
+                                        type="text"
+                                        name="search"
+                                        autoComplete="off"
+                                        defaultValue={filters.search}
+                                        onChange={e => searchProducts(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Escape') setShowAutocomplete(false);
+                                            if (e.key === 'Enter') setShowAutocomplete(false);
+                                        }}
+                                        className="w-full px-3 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white text-xs focus:outline-none focus:border-gold transition-all"
+                                    />
+                                    {showAutocomplete && searchSuggestions.length > 0 && (
+                                        <div
+                                            ref={autocompleteRef}
+                                            className="absolute top-full mt-1 w-full bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl overflow-hidden"
+                                            style={{ zIndex: 9999 }}
+                                            dir={language === 'ar' ? 'rtl' : 'ltr'}
+                                        >
+                                            {searchSuggestions.map((item: any) => (
+                                                <div
+                                                    key={item.product_id}
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        handleSuggestionClick(item);
+                                                    }}
+                                                    className="px-3 py-2 flex items-center justify-between border-b border-silver/10 last:border-0 hover:bg-gold/20 cursor-pointer transition-colors"
+                                                >
+                                                    <span className="text-white text-xs">{item.name}</span>
+                                                    <span className="text-gold text-[10px] opacity-60">#{item.product_id}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* searchBy */}
+                                <Dropdown
+                                    options={[
+                                        { value: 'name', label: t('byName') },
+                                        { value: 'code', label: t('byCode') }
+                                    ]}
+                                    value={filters.searchBy}
+                                    onChange={(val) => setFilters(f => ({ ...f, searchBy: val }))}
+                                    language={language}
+                                    className="min-w-[65px]"
+                                />
+
+                                {/* CategoryDropdown */}
+                                <CategoryDropdown
+                                    categories={uniqueCategories}
+                                    selectedCategory={filters.category}
+                                    onSelectCategory={(cat) => setFilters(f => ({ ...f, category: cat }))}
+                                    language={language}
+                                />
+
+                                {/* lowStock */}
+                                <Dropdown
+                                    options={[
+                                        { value: '', label: t('quantity') },
+                                        { value: '5', label: '5' },
+                                        { value: '10', label: '10' },
+                                        { value: '20', label: '20' },
+                                        { value: '50', label: '50' }
+                                    ]}
+                                    value={filters.lowStock}
+                                    onChange={(val) => setFilters(f => ({ ...f, lowStock: val }))}
+                                    language={language}
+                                    className="min-w-[60px]"
+                                />
+
+                                {/* price range */}
+                                <div className="flex items-center gap-0.5 bg-[#0a0a0c] border border-silver/30 rounded-full px-1.5 py-1">
+                                    <span className="text-silver text-[9px]">$</span>
+                                    <input
+                                        type="number"
+                                        name="minPrice"
+                                        defaultValue={filters.minPrice}
+                                        placeholder="0"
+                                        className="w-9 bg-transparent text-white text-[9px] focus:outline-none"
+                                    />
+                                    <span className="text-silver text-[9px]">-</span>
+                                    <input
+                                        type="number"
+                                        name="maxPrice"
+                                        defaultValue={filters.maxPrice}
+                                        placeholder="0"
+                                        className="w-9 bg-transparent text-white text-[9px] focus:outline-none"
+                                    />
+                                </div>
+
+                                {/* Search */}
+                                <button type="submit" title={t('search')}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors flex-shrink-0">
+                                    <Image src="/assets/images/search.ico" alt={t('search')} width={20} height={20} className="w-5 h-5 object-contain" />
+                                </button>
+
+                                {/* Reset */}
+                                <button type="button" onClick={handleReset} title={t('reset')}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0 text-silver hover:text-red-400">
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                                    </svg>
+                                </button>
+
+                                {/* Add */}
+                                <button type="button" onClick={handleAdd} title={t('add')}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors flex-shrink-0">
+                                    <Image src="/assets/images/add.png" alt={t('add')} width={20} height={20} className="w-5 h-5 object-contain" />
+                                </button>
+
+                                {/* Deleted products */}
+                                <button
+                                    type="button"
+                                    onClick={() => router.push(`/${locale}/products/deleted`)}
+                                    title={t('deletedProducts')}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"
+                                >
+                                    <Image src="/assets/images/delete.svg" alt={t('deletedProducts')} width={20} height={20} className="w-5 h-5 object-contain" />
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+
+                    {/* ==================== TABLE ==================== */}
+                    <div className="relative w-full">
+                        {/* Floating Header */}
                         <div
-                            className="flex items-center gap-1 text-silver cursor-pointer hover:border hover:border-gold/50 rounded-full px-2 py-1 transition-all"
-                            onMouseEnter={() => setIsDateExpanded(true)}
-                            onMouseLeave={() => setIsDateExpanded(false)}
+                            ref={floatingScrollRef}
+                            className="absolute top-0 left-0 right-0 overflow-x-auto scrollbar-none bg-[#2a2a2a] border-b border-[#3E3B3F]"
+                            style={{ zIndex: 10 }}
+                            dir={language === 'ar' ? 'rtl' : 'ltr'}
                         >
-                            <span suppressHydrationWarning className="text-sm">{timeString}</span>
-                            {isDateExpanded && (
-                                <>
-                                    <span className="text-xs text-silver/80">{shortDate}</span>
-                                    <button onClick={openWeatherPopup} className="text-gold hover:text-yellow-500 transition-colors" title={fullDate}>
-                                        <Image src="/assets/images/cloud.svg" alt={t('weather')} width={20} height={20} className="w-5 h-5 object-contain" priority />
-                                    </button>
-                                </>
+                            <table style={{ tableLayout: 'fixed', width: '100%', minWidth: '800px' }}>
+                                <thead>
+                                    <tr>
+                                        {colLabels.map((label, i) => (
+                                            <th
+                                                key={i}
+                                                className="px-2 py-2 text-xs font-medium text-silver"
+                                                style={{ textAlign: language === 'ar' ? 'right' : 'left', maxWidth: '150px' }}
+                                            >
+                                                {label}
+                                            </th>
+                                        ))}
+                                        <th className="px-2 py-2 text-xs font-medium text-silver text-center" style={{ maxWidth: '100px' }}>
+                                            {t('edit')}
+                                        </th>
+                                    </tr>
+                                </thead>
+                            </table>
+                        </div>
+
+                        {/* Original Table */}
+                        <div
+                            ref={tableContainerRef}
+                            className="overflow-auto scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent"
+                            style={{ maxHeight: 'calc(100vh - 280px)' }}
+                        >
+                            {loading ? (
+                                <div className="p-8 text-center">
+                                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gold" />
+                                    <p className="text-silver text-xs mt-2">{t('loading')}</p>
+                                </div>
+                            ) : (
+                                <DataTable
+                                    tableName="products"
+                                    columns={columns}
+                                    data={paginatedData}
+                                    onEdit={handleEdit}
+                                    onDelete={(id: string) => softDelete(id, 'product_id')}
+                                    idColumn="product_id"
+                                    language={language}
+                                    tableHeaderRef={tableHeaderRef}
+                                    loading={loading}
+                                />
+                            )}
+                        </div>
+
+                        {/* أزرار التمرير الجانبية */}
+                        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 pointer-events-none flex justify-between px-1" style={{ zIndex: 5 }}>
+                            {showLeftScroll && (
+                                <button onClick={doScrollLeft} className="pointer-events-auto w-7 h-7 flex items-center justify-center bg-gold/20 hover:bg-gold/40 rounded-full transition-colors">
+                                    <Image src="/assets/images/left.svg" alt={t('scrollLeft')} width={28} height={28} className="w-6 h-6 object-contain" />
+                                </button>
+                            )}
+                            {showRightScroll && (
+                                <button onClick={doScrollRight} className="pointer-events-auto w-7 h-7 flex items-center justify-center bg-gold/20 hover:bg-gold/40 rounded-full transition-colors">
+                                    <Image src="/assets/images/right.svg" alt={t('scrollRight')} width={28} height={28} className="w-6 h-6 object-contain" />
+                                </button>
                             )}
                         </div>
                     </div>
 
-                    <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
-                        <Image src="/assets/images/ERP.svg" alt="ERP" width={140} height={140} className="w-28 h-28 md:w-32 md:h-32 object-contain" priority />
+                    {/* Pagination */}
+                    <div className="mt-4">
+                        <Pagination
+                            currentPage={currentPage}
+                            totalPages={totalPages}
+                            totalCount={data.length}
+                            limit={pageLimit}
+                            onPageChange={setCurrentPage}
+                            onLimitChange={setPageLimit}
+                            language={language}
+                            limitOptions={[10, 25, 50, 100]}
+                        />
                     </div>
-
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 flex items-center gap-2" style={{ zIndex: 99999 }}>
-                        <UserMenu />
-                    </div>
-                </div>
-
-                <div className="mb-3">
-                    <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t('products')}</h1>
-                </div>
-
-                {/* ==================== SEARCH BAR ==================== */}
-                <form onSubmit={handleSubmit} className="mb-6 w-full" style={{ position: 'relative', zIndex: 50 }}>
-                    <div className="bg-[#1a1a1e]/90 backdrop-blur-xl rounded-xl border border-gold/30 p-2 shadow-xl">
-                        <div className="flex flex-wrap items-center gap-1">
-
-                            {/* Input + Autocomplete */}
-                            <div className="flex-1 min-w-[150px] relative">
-                                <input
-                                    ref={searchInputRef}
-                                    type="text"
-                                    name="search"
-                                    autoComplete="off"
-                                    defaultValue={filters.search}
-                                    onChange={e => searchProducts(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Escape') setShowAutocomplete(false);
-                                        if (e.key === 'Enter') setShowAutocomplete(false);
-                                    }}
-                                    className="w-full px-3 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white text-xs focus:outline-none focus:border-gold transition-all"
-                                />
-
-                                {showAutocomplete && searchSuggestions.length > 0 && (
-                                    <div
-                                        ref={autocompleteRef}
-                                        className="absolute top-full mt-1 w-full bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl overflow-hidden"
-                                        style={{ zIndex: 9999 }}
-                                        dir={language === 'ar' ? 'rtl' : 'ltr'}
-                                    >
-                                        {searchSuggestions.map((item: any) => (
-                                            <div
-                                                key={item.product_id}
-                                                onMouseDown={(e) => {
-                                                    e.preventDefault();
-                                                    handleSuggestionClick(item);
-                                                }}
-                                                className="px-3 py-2 flex items-center justify-between border-b border-silver/10 last:border-0 hover:bg-gold/20 cursor-pointer transition-colors"
-                                            >
-                                                <span className="text-white text-xs">{item.name}</span>
-                                                <span className="text-gold text-[10px] opacity-60">#{item.product_id}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* searchBy */}
-                            <Dropdown
-                                options={[
-                                    { value: 'name', label: t('byName') },
-                                    { value: 'code', label: t('byCode') }
-                                ]}
-                                value={filters.searchBy}
-                                onChange={(val) => setFilters(f => ({ ...f, searchBy: val }))}
-                                language={language}
-                                className="min-w-[65px]"
-                            />
-
-                            {/* CategoryDropdown */}
-                            <CategoryDropdown
-                                categories={uniqueCategories}
-                                selectedCategory={filters.category}
-                                onSelectCategory={(cat) => setFilters(f => ({ ...f, category: cat }))}
-                                language={language}
-                            />
-
-                            {/* lowStock */}
-                            <Dropdown
-                                options={[
-                                    { value: '', label: t('quantity') },
-                                    { value: '5', label: '5' },
-                                    { value: '10', label: '10' },
-                                    { value: '20', label: '20' },
-                                    { value: '50', label: '50' }
-                                ]}
-                                value={filters.lowStock}
-                                onChange={(val) => setFilters(f => ({ ...f, lowStock: val }))}
-                                language={language}
-                                className="min-w-[60px]"
-                            />
-
-                            {/* price range */}
-                            <div className="flex items-center gap-0.5 bg-[#0a0a0c] border border-silver/30 rounded-full px-1.5 py-1">
-                                <span className="text-silver text-[9px]">$</span>
-                                <input
-                                    type="number"
-                                    name="minPrice"
-                                    defaultValue={filters.minPrice}
-                                    placeholder="0"
-                                    className="w-9 bg-transparent text-white text-[9px] focus:outline-none"
-                                />
-                                <span className="text-silver text-[9px]">-</span>
-                                <input
-                                    type="number"
-                                    name="maxPrice"
-                                    defaultValue={filters.maxPrice}
-                                    placeholder="0"
-                                    className="w-9 bg-transparent text-white text-[9px] focus:outline-none"
-                                />
-                            </div>
-
-                            {/* Search */}
-                            <button type="submit" title={t('search')}
-                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors flex-shrink-0">
-                                <Image src="/assets/images/search.ico" alt={t('search')} width={20} height={20} className="w-5 h-5 object-contain" />
-                            </button>
-
-                            {/* Reset */}
-                            <button type="button" onClick={handleReset} title={t('reset')}
-                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0 text-silver hover:text-red-400">
-                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
-                                </svg>
-                            </button>
-
-                            {/* Add */}
-                            <button type="button" onClick={handleAdd} title={t('add')}
-                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors flex-shrink-0">
-                                <Image src="/assets/images/add.png" alt={t('add')} width={20} height={20} className="w-5 h-5 object-contain" />
-                            </button>
-
-                            {/* Deleted products */}
-                            <button
-                                type="button"
-                                onClick={() => router.push(`/${locale}/products/deleted`)}
-                                title={t('deletedProducts')}
-                                className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"
-                            >
-                                <Image src="/assets/images/delete.svg" alt={t('deletedProducts')} width={20} height={20} className="w-5 h-5 object-contain" />
-                            </button>
-                        </div>
-                    </div>
-                </form>
-
-                {/* ==================== TABLE ==================== */}
-                <div className="relative w-full">
-                    {/* Floating Header - دائم الظهور */}
-                    <div
-                        ref={floatingScrollRef}
-                        className="absolute top-0 left-0 right-0 overflow-x-auto scrollbar-none bg-[#2a2a2a] border-b border-[#3E3B3F]"
-                        style={{ zIndex: 10 }}
-                        dir={language === 'ar' ? 'rtl' : 'ltr'}
-                    >
-                        <table style={{ tableLayout: 'fixed', width: '100%', minWidth: '800px' }}>
-                            <thead>
-                                <tr>
-                                    {colLabels.map((label, i) => (
-                                        <th
-                                            key={i}
-                                            className="px-2 py-2 text-xs font-medium text-silver"
-                                            style={{ textAlign: language === 'ar' ? 'right' : 'left', maxWidth: '150px' }}
-                                        >
-                                            {label}
-                                        </th>
-                                    ))}
-                                    <th className="px-2 py-2 text-xs font-medium text-silver text-center" style={{ maxWidth: '100px' }}>
-                                        {t('edit')}
-                                    </th>
-                                </tr>
-                            </thead>
-                        </table>
-                    </div>
-
-                    {/* Original Table */}
-                    <div
-                        ref={tableContainerRef}
-                        className="overflow-auto scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent"
-                        style={{ maxHeight: 'calc(100vh - 280px)' }}
-                    >
-                        {loading ? (
-                            <div className="p-8 text-center">
-                                <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gold" />
-                                <p className="text-silver text-xs mt-2">{t('loading')}</p>
-                            </div>
-                        ) : (
-                            <DataTable
-                                tableName="products"
-                                columns={columns}
-                                data={paginatedData}
-                                onEdit={handleEdit}
-                                onDelete={(id: string) => softDelete(id, 'product_id')}
-                                idColumn="product_id"
-                                language={language}
-                                tableHeaderRef={tableHeaderRef}
-                                loading={loading}
-                            />
-                        )}
-                    </div>
-
-                    {/* أزرار التمرير الجانبية */}
-                    <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 pointer-events-none flex justify-between px-1" style={{ zIndex: 5 }}>
-                        {showLeftScroll && (
-                            <button onClick={doScrollLeft} className="pointer-events-auto w-7 h-7 flex items-center justify-center bg-gold/20 hover:bg-gold/40 rounded-full transition-colors">
-                                <Image src="/assets/images/left.svg" alt={t('scrollLeft')} width={28} height={28} className="w-6 h-6 object-contain" />
-                            </button>
-                        )}
-                        {showRightScroll && (
-                            <button onClick={doScrollRight} className="pointer-events-auto w-7 h-7 flex items-center justify-center bg-gold/20 hover:bg-gold/40 rounded-full transition-colors">
-                                <Image src="/assets/images/right.svg" alt={t('scrollRight')} width={28} height={28} className="w-6 h-6 object-contain" />
-                            </button>
-                        )}
-                    </div>
-                </div>
-
-                {/* ==================== PAGINATION ==================== */}
-                <div className="mt-4">
-                    <Pagination
-                        currentPage={currentPage}
-                        totalPages={totalPages}
-                        totalCount={data.length}
-                        limit={pageLimit}
-                        onPageChange={setCurrentPage}
-                        onLimitChange={setPageLimit}
-                        language={language}
-                        limitOptions={[10, 25, 50, 100]}
-                    />
                 </div>
             </div>
 
             <ProductModal
                 isOpen={isModalOpen} onClose={handleClose} onSuccess={handleSuccess}
                 product={editingProduct} language={language}
-            />
-            <WeatherPopup
-                isOpen={isWeatherOpen} onClose={() => setIsWeatherOpen(false)}
-                weatherData={weatherData} loading={weatherLoading} language={language}
             />
         </div>
     );
