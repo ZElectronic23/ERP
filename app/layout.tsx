@@ -1,26 +1,21 @@
 import type { Metadata } from "next";
-import { Cairo, Alata } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AppProvider } from "@/contexts/AppContext";
 
-const cairo = Cairo({
-  subsets: ["arabic", "latin"],
-  variable: '--font-cairo',
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
 });
 
-const alata = Alata({
-  weight: '400',
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
-  variable: '--font-alata',
 });
 
 export const metadata: Metadata = {
   title: "Z.Electronic ERP",
-  description: "نظام إدارة موارد المؤسسات",
-  icons: {
-    icon: '/assets/images/LOGO ICO.png',
-    shortcut: '/assets/images/LOGO ICO.png',
-    apple: '/assets/images/LOGO ICO.png',
-  },
+  description: "نظام إدارة الموارد المؤسسية - Z.Electronic",
 };
 
 export default function RootLayout({
@@ -30,24 +25,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <head>
-        <meta
-          name="format-detection"
-          content="telephone=no, date=no, email=no, address=no"
-        />
-        <link href="https://fonts.googleapis.com/css2?family=Alata&display=swap" rel="stylesheet" />
-      </head>
       <body
-        className={`${cairo.variable} ${alata.variable} font-sans`}
-        style={{
-          backgroundImage: "url('/assets/images/BG.png')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundAttachment: 'fixed'
-        }}
-        suppressHydrationWarning
+        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#1a1a1a] text-white`}
       >
-        {children}
+        <AppProvider>
+          {children}
+        </AppProvider>
       </body>
     </html>
   );

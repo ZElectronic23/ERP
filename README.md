@@ -1,36 +1,280 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Z.Electronic ERP System
 
-## Getting Started
+نظام إدارة الموارد المؤسسية المتكامل - Z.Electronic
 
-First, run the development server:
+## 🎯 نظرة سريعة
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **التقنيات:** Next.js 16, TypeScript, Supabase, Tailwind CSS
+- **الهيكل:** Modular Architecture مع فصل كامل للمسؤوليات
+- **GitHub:** https://github.com/ZElectronic23/ERP.git
+
+## 📂 هيكل المشروع
+
+```
+ERP/
+├── app/
+│   ├── admin/users/           # صفحة إدارة المستخدمين
+│   │   ├── api/               # API routes للمستخدمين
+│   │   │   ├── route.ts       # GET, POST, PATCH
+│   │   │   ├── delete/        # حذف مستخدم
+│   │   │   ├── restore/       # استعادة مستخدم
+│   │   │   └── status/        # تغيير حالة
+│   │   └── page.tsx           # صفحة المستخدمين
+│   ├── products/              # صفحة المنتجات
+│   │   └── page.tsx
+│   ├── login/                 # صفحة تسجيل الدخول
+│   ├── dashboard/             # لوحة التحكم
+│   ├── layout.tsx             # Layout رئيسي مع AppProvider
+│   └── globals.css            # الأنماط العامة
+│
+├── components/
+│   ├── data/
+│   │   ├── DataTable.tsx      # جدول بيانات متكامل
+│   │   ├── TableActions.tsx   # أزرار الإجراءات
+│   │   ├── SearchFilter.tsx   # فلترة البحث
+│   │   └── Pagination.tsx     # تقسيم الصفحات
+│   ├── modals/
+│   │   └── ProductModal.tsx   # نافذة إضافة/تعديل منتج
+│   ├── auth/                  # مكونات المصادقة
+│   ├── ui/                    # مكونات UI أساسية
+│   ├── CategoryDropdown.tsx   # قائمة الفئات
+│   ├── UserMenu.tsx           # قائمة المستخدم
+│   ├── WeatherPopup.tsx       # نافذة الطقس
+│   └── PasswordStrengthMeter.tsx
+│
+├── lib/
+│   ├── api.ts                 # ✅ مكتبة API مركزية
+│   ├── supabaseClient.ts      # Supabase client
+│   ├── translations.ts        # الترجمات (ar/en)
+│   ├── imageUtils.ts          # معالجة الصور
+│   ├── weather.ts             # API الطقس
+│   └── auth-helpers.ts        # مساعدات المصادقة
+│
+├── hooks/
+│   ├── index.ts               # ✅ exports الموحدة
+│   ├── useTableData.ts        # جلب بيانات الجداول
+│   ├── useDelete.ts           # حذف/استعادة
+│   └── useUsers.ts            # ✅ إدارة المستخدمين
+│
+├── contexts/
+│   └── AppContext.tsx         # ✅ Global state management
+│
+├── config/
+│   └── tables.ts              # إعدادات الجداول
+│
+└── public/assets/images/      # الصور الثابتة
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## 🔑 المميزات الرئيسية
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### ✅ Architecture
+- **Modular Design:** كل ملف له مسؤولية واحدة
+- **Type Safety:** TypeScript صارم في كل مكان
+- **Error Handling:** معالجة شاملة للأخطاء
+- **Reusability:** مكونات ومكتبات قابلة لإعادة الاستخدام
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### ✅ API Layer
+- **lib/api.ts:** مكتبة API مركزية موحدة
+- **معالجة أخطاء موحدة:** كل الـ API calls بنفس النمط
+- **Type Safety:** interfaces لكل الـ data types
 
-## Learn More
+### ✅ State Management
+- **AppContext:** Global state للـ language, user, notifications
+- **Custom Hooks:** useUsers, useProducts, useTableData, useDelete
+- **Local Storage:** حفظ الإعدادات (language, dark mode)
 
-To learn more about Next.js, take a look at the following resources:
+### ✅ Data Fetching
+- **useTableData:** جلب بيانات مع pagination, filtering, sorting
+- **useDelete:** حذف واستعادة مع error handling
+- **useUsers:** إدارة المستخدمين كاملة
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### ✅ UI Components
+- **DataTable:** جدول بيانات متكامل مع floating header
+- **Pagination:** تقسيم الصفحات مع اختيار العدد
+- **ProductModal:** نافذة إضافة/تعديل منتج مع رفع صور
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## 🛠️ الاستخدام
 
-## Deploy on Vercel
+### 1. استخدام API Library:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```typescript
+import { api } from '@/lib/api';
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+// جلب المستخدمين
+const response = await api.getUsers();
+if (response.success) {
+  console.log(response.data.users);
+}
+
+// إنشاء منتج
+const result = await api.createProduct({
+  name: 'منتج جديد',
+  sell_price: 100,
+});
+```
+
+### 2. استخدام Custom Hooks:
+
+```typescript
+import { useUsers, useProducts, useTableData } from '@/hooks';
+
+// في المكون
+function UsersPage() {
+  const { users, loading, createUser, deleteUser } = useUsers();
+  const { products, loading: productsLoading } = useProducts();
+  
+  const { 
+    data, 
+    loading, 
+    currentPage, 
+    totalPages, 
+    setPage 
+  } = useTableData('products', { limit: 25 });
+  
+  // استخدام مباشر
+  if (loading) return <Loading />;
+  
+  return <div>{users.map(...)}</div>;
+}
+```
+
+### 3. استخدام App Context:
+
+```typescript
+import { useApp } from '@/contexts/AppContext';
+
+function MyComponent() {
+  const { 
+    language, 
+    toggleLanguage, 
+    currentUser, 
+    showNotification,
+    isDarkMode,
+    toggleDarkMode 
+  } = useApp();
+  
+  // إظهار إشعار
+  showNotification('تم الحفظ بنجاح', 'success');
+  
+  return <div>...</div>;
+}
+```
+
+### 4. استخدام DataTable:
+
+```typescript
+import DataTable from '@/components/data/DataTable';
+import { tableConfigs } from '@/config/tables';
+
+function ProductsPage() {
+  const { data, loading } = useTableData('products');
+  
+  return (
+    <DataTable
+      tableName="products"
+      columns={tableConfigs.products.columns}
+      data={data}
+      onEdit={handleEdit}
+      onDelete={handleDelete}
+      loading={loading}
+    />
+  );
+}
+```
+
+### 5. استخدام Pagination:
+
+```typescript
+import Pagination from '@/components/data/Pagination';
+
+function ProductsPage() {
+  const { 
+    data, 
+    currentPage, 
+    totalPages, 
+    totalCount,
+    setPage,
+    setLimit 
+  } = useTableData('products', { limit: 25 });
+  
+  return (
+    <>
+      <DataTable ... />
+      <Pagination
+        currentPage={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        limit={25}
+        onPageChange={setPage}
+        onLimitChange={setLimit}
+      />
+    </>
+  );
+}
+```
+
+## 🎨 نظام التصميم
+
+### الألوان:
+```css
+--gold: #DBA935       /* ذهبي */
+--darkwhite: #3E3B3F  /* رمادي داكن */
+--silver: #c0c0c0     /* فضي */
+--bg-dark: #1a1a1a    /* خلفية داكنة */
+--bg-card: #2a2a2a    /* خلفية البطاقات */
+```
+
+## 🔐 الأمان
+
+### Environment Variables:
+```env
+NEXT_PUBLIC_SUPABASE_URL=your_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_key
+```
+
+### Best Practices:
+- ✅ استخدام Service Role Key فقط في server-side APIs
+- ✅ تشفير كلمات المرور (bcrypt)
+- ✅ معالجة جميع الأخطاء
+- ✅ Validate inputs قبل الحفظ
+- ✅ استخدام RLS Policies في Supabase
+
+## 🚀 Quick Start
+
+```bash
+# 1. Clone
+git clone https://github.com/ZElectronic23/ERP.git
+
+# 2. Install
+npm install
+
+# 3. Setup .env.local
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+SUPABASE_SERVICE_ROLE_KEY=...
+
+# 4. Create Buckets in Supabase Storage:
+- avatars (Public)
+- products (Public)
+
+# 5. Run
+npm run dev
+```
+
+## 📝 ملاحظات هامة
+
+1. **قبل البدء:** تأكد من إنشاء buckets في Supabase
+2. **عند الخطأ:** راجع Console → Network → Response
+3. **للأداء:** استخدم React.memo() للمكونات الكبيرة
+4. **للصيانة:** كل ملف له مسؤولية واحدة فقط
+
+## 📞 التواصل
+
+**GitHub:** https://github.com/ZElectronic23/ERP.git  
+**Support:** WhatsApp +20 100 449 6397
+
+---
+
+**آخر تحديث:** 2026-03-11  
+**الإصدار:** 2.0.0 (Architecture Refactor)

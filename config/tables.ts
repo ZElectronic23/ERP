@@ -29,14 +29,6 @@ export const tableConfigs: Record<string, TableConfig> = {
             { key: 'stock_quantity', label: 'الكمية', type: 'number' },
             { key: 'unit', label: 'الوحدة', type: 'text' },
         ],
-        formFields: [
-            { name: 'product_id', label: 'كود المنتج', type: 'text', required: true },
-            { name: 'name', label: 'اسم المنتج', type: 'text', required: true },
-            { name: 'category', label: 'الفئة', type: 'text' },
-            { name: 'sell_price', label: 'سعر البيع', type: 'number' },
-            { name: 'cost_price', label: 'سعر التكلفة', type: 'number' },
-            { name: 'stock_quantity', label: 'الكمية', type: 'number' },
-            { name: 'unit', label: 'الوحدة', type: 'text' },
-        ],
+        formFields: [],
     },
 };

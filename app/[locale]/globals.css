@@ -26,6 +26,7 @@ body {
   font-family: var(--font-sans);
 }
 
+/* إضافة بعض التحسينات للتمرير */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
