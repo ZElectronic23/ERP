@@ -1,100 +1,85 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
-import bcrypt from 'bcryptjs'
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerClient } from '@supabase/ssr';
+import { cookies } from 'next/headers';
+import { createClient } from '@supabase/supabase-js';
+import bcrypt from 'bcryptjs';
+
+async function getCurrentUser() {
+  const cookieStore = await cookies();
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+      },
+    }
+  );
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+}
 
 export async function GET() {
-  console.log('========== Admin API GET called ==========')
-
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      return NextResponse.json(
-        { error: 'Missing environment variables' },
-        { status: 500 }
-      )
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey)
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const { data: users, error } = await supabaseAdmin
       .from('users')
       .select('*')
-      .order('created_at', { ascending: false })
+      .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('❌ Error fetching users:', error)
-      return NextResponse.json(
-        { error: error.message },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ users })
-
+    return NextResponse.json({ users });
   } catch (error: any) {
-    console.error('❌ Error in GET handler:', error)
-    return NextResponse.json({ error: error.message }, { status: 500 })
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json()
-    console.log('POST request body:', { ...body, password: '***' })
-
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      return NextResponse.json(
-        { error: 'Missing environment variables' },
-        { status: 500 }
-      )
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey)
+    const body = await request.json();
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     // التحقق من عدم وجود البريد مسبقاً
     const { data: existingUser, error: checkError } = await supabaseAdmin
       .from('users')
       .select('email')
       .eq('email', body.email)
-      .maybeSingle()
-
+      .maybeSingle();
     if (checkError) {
-      return NextResponse.json(
-        { error: checkError.message },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: checkError.message }, { status: 500 });
     }
-
     if (existingUser) {
-      return NextResponse.json(
-        { error: 'A user with this email address has already been registered' },
-        { status: 400 }
-      )
+      return NextResponse.json({ error: 'A user with this email address has already been registered' }, { status: 400 });
     }
 
-    // التحقق من عدم وجود البريد في auth.users
-    const { data: authUsers, error: authCheckError } = await supabaseAdmin.auth.admin.listUsers()
-
+    const { data: authUsers, error: authCheckError } = await supabaseAdmin.auth.admin.listUsers();
     if (!authCheckError) {
-      const existingAuthUser = authUsers.users.find(u => u.email === body.email)
+      const existingAuthUser = authUsers.users.find(u => u.email === body.email);
       if (existingAuthUser) {
-        return NextResponse.json(
-          { error: 'A user with this email address has already been registered in auth' },
-          { status: 400 }
-        )
+        return NextResponse.json({ error: 'A user with this email address has already been registered in auth' }, { status: 400 });
       }
     }
 
-    // تشفير كلمة المرور
-    const password = body.password
-    const hashedPassword = await bcrypt.hash(password, 12)
+    const password = body.password;
+    const hashedPassword = await bcrypt.hash(password, 12);
 
-    // إنشاء المستخدم في auth.users أولاً
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email: body.email,
       password: password,
@@ -104,17 +89,11 @@ export async function POST(request: Request) {
         role: body.user_metadata?.role || 'employee',
         is_admin: body.user_metadata?.is_admin || false
       }
-    })
-
+    });
     if (authError) {
-      console.error('Auth creation error:', authError)
-      return NextResponse.json(
-        { error: authError.message },
-        { status: 500 }
-      )
+      return NextResponse.json({ error: authError.message }, { status: 500 });
     }
 
-    // إنشاء المستخدم في public.users مع status = 'active'
     const { data: userData, error: userError } = await supabaseAdmin
       .from('users')
       .insert([{
@@ -132,104 +111,103 @@ export async function POST(request: Request) {
         updated_at: new Date().toISOString()
       }])
       .select()
-      .single()
+      .single();
 
     if (userError) {
-      // Rollback
-      await supabaseAdmin.auth.admin.deleteUser(authData.user.id)
-      return NextResponse.json(
-        { error: userError.message },
-        { status: 500 }
-      )
+      await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
+      return NextResponse.json({ error: userError.message }, { status: 500 });
     }
 
-    return NextResponse.json({
-      user: userData,
-      message: 'User created successfully'
-    })
-
+    return NextResponse.json({ user: userData, message: 'User created successfully' });
   } catch (error: any) {
-    console.error('POST error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Unknown error occurred' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message || 'Unknown error occurred' }, { status: 500 });
   }
 }
 
-export async function PATCH(request: Request) {
+export async function PATCH(request: NextRequest) {
   try {
-    const body = await request.json()
-    console.log('PATCH request body:', { ...body, password: body.password ? '***' : undefined })
+    const { searchParams } = new URL(request.url);
+    const action = searchParams.get('action');
+    const body = await request.json();
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    if (!supabaseUrl || !supabaseServiceRoleKey) {
-      return NextResponse.json(
-        { error: 'Missing environment variables' },
-        { status: 500 }
-      )
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey)
-
-    // الحصول على user_id من public.users
     const { data: user, error: fetchError } = await supabaseAdmin
       .from('users')
       .select('entity_id, profile_image')
       .eq('email', body.email)
-      .single()
-
+      .single();
     if (fetchError) {
-      return NextResponse.json(
-        { error: 'User not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // تحديث metadata في auth
+    // حالة status
+    if (action === 'status') {
+      const { error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({ status: body.status, updated_at: new Date().toISOString() })
+        .eq('email', body.email);
+      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return NextResponse.json({ message: `Status updated to ${body.status}` });
+    }
+
+    // حالة delete (soft / hard)
+    if (action === 'delete') {
+      const soft = body.soft !== false;
+      if (soft) {
+        const { error: updateError } = await supabaseAdmin
+          .from('users')
+          .update({ status: 'deleted', updated_at: new Date().toISOString() })
+          .eq('email', body.email);
+        if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+        return NextResponse.json({ message: 'User moved to deleted' });
+      } else {
+        const { error: authDeleteError } = await supabaseAdmin.auth.admin.deleteUser(user.entity_id);
+        if (authDeleteError) return NextResponse.json({ error: authDeleteError.message }, { status: 500 });
+        const { error: deleteError } = await supabaseAdmin
+          .from('users')
+          .delete()
+          .eq('email', body.email);
+        if (deleteError) return NextResponse.json({ error: deleteError.message }, { status: 500 });
+        return NextResponse.json({ message: 'User permanently deleted' });
+      }
+    }
+
+    // حالة restore
+    if (action === 'restore') {
+      const { error: updateError } = await supabaseAdmin
+        .from('users')
+        .update({ status: 'active', updated_at: new Date().toISOString() })
+        .eq('email', body.email);
+      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 });
+      return NextResponse.json({ message: 'User restored' });
+    }
+
+    // تحديث بيانات المستخدم (بدون action)
     const metadata: any = {
       full_name: body.user_metadata?.full_name,
       role: body.user_metadata?.role,
       is_admin: body.user_metadata?.is_admin
-    }
+    };
+    await supabaseAdmin.auth.admin.updateUserById(user.entity_id, { user_metadata: metadata }).catch(e => console.error('Auth update error:', e));
 
-    await supabaseAdmin.auth.admin.updateUserById(
-      user.entity_id,
-      { user_metadata: metadata }
-    ).catch(e => console.error('Auth update error:', e))
-
-    // تحضير بيانات التحديث لجدول users
     const updateData: any = {
       full_name: body.user_metadata?.full_name,
       role_key: body.user_metadata?.role,
       is_admin: body.user_metadata?.is_admin,
       entity_type: body.entity_type,
       updated_at: new Date().toISOString()
-    }
+    };
+    if (body.user_metadata?.profile_image !== undefined) updateData.profile_image = body.user_metadata.profile_image;
 
-    if (body.user_metadata?.profile_image !== undefined) {
-      updateData.profile_image = body.user_metadata.profile_image
-    }
-
-    // ** معالجة كلمة المرور: دعم المصدرين (top-level أو داخل user_metadata) **
-    const newPassword = body.password || body.user_metadata?.password
+    const newPassword = body.password || body.user_metadata?.password;
     if (newPassword) {
-      // تحديث كلمة المرور في جدول users
-      updateData.password_hash = await bcrypt.hash(newPassword, 12)
-
-      // تحديث كلمة المرور في Auth مع تسجيل الخطأ إن وجد
-      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(
-        user.entity_id,
-        { password: newPassword }
-      )
-
-      if (authUpdateError) {
-        console.error('❌ Auth password update error:', authUpdateError)
-        // اختيارياً: يمكنك إرجاع خطأ للعميل إذا كان فشل تحديث Auth مهماً
-        // return NextResponse.json({ error: 'Failed to update auth password' }, { status: 500 })
-      }
+      updateData.password_hash = await bcrypt.hash(newPassword, 12);
+      const { error: authUpdateError } = await supabaseAdmin.auth.admin.updateUserById(user.entity_id, { password: newPassword });
+      if (authUpdateError) console.error('❌ Auth password update error:', authUpdateError);
     }
 
     const { data: userData, error: userError } = await supabaseAdmin
@@ -237,25 +215,11 @@ export async function PATCH(request: Request) {
       .update(updateData)
       .eq('email', body.email)
       .select()
-      .single()
+      .single();
+    if (userError) return NextResponse.json({ error: userError.message }, { status: 500 });
 
-    if (userError) {
-      return NextResponse.json(
-        { error: userError.message },
-        { status: 500 }
-      )
-    }
-
-    return NextResponse.json({
-      user: userData,
-      message: 'User updated successfully'
-    })
-
+    return NextResponse.json({ user: userData, message: 'User updated successfully' });
   } catch (error: any) {
-    console.error('PATCH error:', error)
-    return NextResponse.json(
-      { error: error.message || 'Unknown error occurred' },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message || 'Unknown error occurred' }, { status: 500 });
   }
 }

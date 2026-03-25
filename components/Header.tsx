@@ -3,21 +3,18 @@
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { useTranslations } from 'next-intl';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import UserMenu from './UserMenu';
 import WeatherPopup from './WeatherPopup';
 import { fetchWeatherData } from '@/lib/weather';
 
 export default function Header() {
+    // جميع الـ Hooks في الأعلى
     const t = useTranslations();
     const pathname = usePathname();
-    const router = useRouter();
     const locale = pathname?.split('/')[1] || 'ar';
     const language = locale as 'ar' | 'en';
-
-    // لا نظهر الهيدر في صفحة تسجيل الدخول
-    if (pathname?.includes('login')) return null;
 
     const [currentTime, setCurrentTime] = useState('');
     const [currentDate, setCurrentDate] = useState('');
@@ -26,6 +23,7 @@ export default function Header() {
     const [weatherData, setWeatherData] = useState<any>(null);
     const [weatherLoading, setWeatherLoading] = useState(false);
 
+    // useEffect – يجب أن يكون قبل أي return شرطي
     useEffect(() => {
         const updateDateTime = () => {
             const now = new Date();
@@ -37,6 +35,10 @@ export default function Header() {
         return () => clearInterval(timer);
     }, [language]);
 
+    // بعد الـ Hooks، يمكن وضع return شرطي
+    if (pathname?.includes('login')) return null;
+
+    // بقية الكود...
     const now = new Date();
     const dayName = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' }).slice(0, 3);
     const day = now.getDate().toString().padStart(2, '0');
@@ -61,17 +63,13 @@ export default function Header() {
     return (
         <>
             <header className="sticky top-0 z-50 w-full px-1 py-0">
-                {/* شبكة ثلاثية الأعمدة لتثبيت العناصر */}
                 <div className="grid grid-cols-3 items-center max-w-5xl mx-auto bg-black/10 backdrop-blur-sm rounded-full border border-gold/20 shadow-lg px-0 py-0 min-h-[40px] md:min-h-[44px]">
-                    {/* الجهة اليمنى: UserMenu ثم NotificationBell */}
                     <div className="flex justify-start items-center gap-0">
                         <div className="ms-1 sm:ms-2">
                             <UserMenu />
                         </div>
                         <NotificationBell />
                     </div>
-
-                    {/* اللوجو في المنتصف - خارج الديف قليلاً */}
                     <div className="flex justify-center items-center -my-2 sm:-my-3">
                         <Image
                             src="/assets/images/ERP.svg"
@@ -82,8 +80,6 @@ export default function Header() {
                             priority
                         />
                     </div>
-
-                    {/* الجهة اليسرى: الوقت والطقس مع التاريخ عند hover */}
                     <div className="flex justify-end items-center text-silver px-1">
                         <div
                             className="flex items-center gap-1 cursor-pointer hover:border hover:border-gold/50 rounded-full px-1 py-0 transition-all leading-8 sm:leading-9 md:leading-10"
@@ -117,7 +113,6 @@ export default function Header() {
                     </div>
                 </div>
             </header>
-
             <WeatherPopup
                 isOpen={isWeatherOpen}
                 onClose={() => setIsWeatherOpen(false)}
