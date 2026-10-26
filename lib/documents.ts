@@ -217,6 +217,7 @@ export interface LineItem {
   discountPct: number;
   discountAmount: number;
   lineTotal: number;
+  discountAllowed?: boolean;
   condition?: string;
   actionTaken?: string;
   notes?: string;

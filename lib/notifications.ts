@@ -1,5 +1,5 @@
 // lib/notifications.ts
-import { supabaseAdmin } from './supabaseAdmin'; // تحتاج إلى تهيئة supabase مع service role key
+import { supabaseAdmin } from './supabase/admin'; // تحتاج إلى تهيئة supabase مع service role key
 
 export async function createNotification({
     userId,

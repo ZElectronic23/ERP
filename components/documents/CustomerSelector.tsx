@@ -88,7 +88,7 @@ export default function CustomerSelector({
   const [errors, setErrors] = useState<Record<string, boolean>>({});
 
   const wrapperRef = useRef<HTMLDivElement>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Close dropdown on outside click ──
   useEffect(() => {
