@@ -157,7 +157,6 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                     width={48}
                     height={48}
                     className="object-contain brightness-0 invert opacity-80 group-hover:opacity-100 transition"
-                    onError={(e) => (e.currentTarget.style.display = 'none')}
                   />
                 </div>
                 <span className="text-white text-sm font-medium group-hover:text-gold transition">
