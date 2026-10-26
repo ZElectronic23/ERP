@@ -1,15 +1,27 @@
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { notFound, redirect } from 'next/navigation';
-import ClientForm from '../../components/ClientForm';
+import ClientForm from '@/components/ClientForm';
 import { getClientById } from '@/lib/db/queries/clients';
 
 export default async function EditClientPage({
-    params: { locale, clientId },
+    params,
 }: {
-    params: { locale: string; clientId: string };
+    params: Promise<{ locale: string; clientId: string }>;
 }) {
-    const supabase = createServerComponentClient({ cookies });
+    const { locale, clientId } = await params;
+    const cookieStore = await cookies();
+    const supabase = createServerClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        {
+            cookies: {
+                get(name: string) {
+                    return cookieStore.get(name)?.value;
+                },
+            },
+        }
+    );
     const { data: { user } } = await supabase.auth.getUser();
 
     if (!user) {
@@ -22,10 +34,21 @@ export default async function EditClientPage({
         return notFound();
     }
 
-    async function updateClient(formData: FormData) {
+    async function updateClientAction(formData: FormData) {
         'use server';
 
-        const supabase = createServerComponentClient({ cookies });
+        const cookieStore = await cookies();
+        const supabase = createServerClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+            {
+                cookies: {
+                    get(name: string) {
+                        return cookieStore.get(name)?.value;
+                    },
+                },
+            }
+        );
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error('Unauthorized');
 
@@ -52,7 +75,7 @@ export default async function EditClientPage({
     return (
         <div className="container mx-auto p-6" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
             <h1 className="text-2xl font-bold mb-6">Edit Client</h1>
-            <ClientForm action={updateClient} locale={locale} initialData={client} />
+            <ClientForm action={updateClientAction} locale={locale} initialData={client} />
         </div>
     );
 }

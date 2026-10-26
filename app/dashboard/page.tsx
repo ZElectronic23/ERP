@@ -52,6 +52,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       accounting: 'المحاسبة',
       legal: 'الشؤون القانونية',
       maintenance: 'الصيانة',
+      documents: 'المستندات',
     },
     en: {
       dashboard: 'Dashboard',
@@ -71,6 +72,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       accounting: 'Accounting',
       legal: 'Legal',
       maintenance: 'Maintenance',
+      documents: 'Documents',
     },
   };
   const dict = t[lang];
@@ -86,6 +88,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     { name: dict.clients, href: `/${locale}/clients`, icon: '/assets/icons/clients.svg' },
     { name: dict.projects, href: `/${locale}/projects`, icon: '/assets/icons/projects.svg' },
     { name: dict.products, href: `/${locale}/products`, icon: '/assets/icons/products.svg' },
+    { name: dict.documents, href: `/${locale}/documents`, icon: '/assets/icons/documents.svg' },
     { name: dict.employees, href: `/${locale}/employees`, icon: '/assets/icons/employees.svg' },
     { name: dict.partners, href: `/${locale}/partners`, icon: '/assets/icons/partners.svg' },
     { name: dict.invoices, href: `/${locale}/invoices`, icon: '/assets/icons/invoices.svg' },
