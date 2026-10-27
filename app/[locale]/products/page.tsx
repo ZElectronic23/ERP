@@ -74,9 +74,13 @@ export default function ProductsPage({ params }: ProductsPageProps) {
 
     const totalPages = Math.ceil(data.length / pageLimit) || 1;
 
-    // ===== Init: preload images =====
+    // ===== Init: preload images + honor ?tab=services =====
     useEffect(() => {
         setIsClient(true);
+        try {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('tab') === 'services') setActiveTab('services');
+        } catch { /* ignore */ }
         const urls = [
             '/assets/images/search.ico', '/assets/images/add.png',
             '/assets/images/ERP.svg', '/assets/images/BG.png', '/assets/images/product.svg'
@@ -374,6 +378,15 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                                         </button>
                                     </>
                                 )}
+
+                                {/* Deleted services (services tab) */}
+                                {activeTab === 'services' && (
+                                    <button type="button" onClick={() => router.push(`/${locale}/services/deleted`)}
+                                        title={language === 'ar' ? 'الخدمات المحذوفة' : 'Deleted services'}
+                                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0">
+                                        <Image src="/assets/images/delete.svg" alt={language === 'ar' ? 'الخدمات المحذوفة' : 'Deleted services'} width={20} height={20} className="w-5 h-5 object-contain" />
+                                    </button>
+                                )}
                             </div>
                         </div>
                     </form>
@@ -384,7 +397,7 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                         columns={columns}
                         data={paginatedData}
                         onEdit={activeTab === 'products' ? handleEdit : undefined}
-                        onDelete={activeTab === 'products' ? (id: string) => softDelete(id, idColumn) : undefined}
+                        onDelete={(id: string) => softDelete(id, idColumn)}
                         idColumn={idColumn}
                         language={language}
                         loading={loading}
