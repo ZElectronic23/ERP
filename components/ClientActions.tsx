@@ -8,7 +8,8 @@ export function DeleteButton({ clientId, locale }: { clientId: string; locale: s
     const [loading, setLoading] = useState(false);
 
     const handleDelete = async () => {
-        if (!confirm('Are you sure you want to delete this client?')) return;
+        const msg = locale === 'ar' ? 'نقل هذا العميل للمحذوفات؟' : 'Move this client to trash?';
+        if (!confirm(msg)) return;
         setLoading(true);
         try {
             const res = await fetch(`/api/clients?action=soft-delete&clientId=${clientId}`, {
@@ -17,7 +18,7 @@ export function DeleteButton({ clientId, locale }: { clientId: string; locale: s
             if (res.ok) {
                 router.refresh();
             } else {
-                alert('Failed to delete');
+                alert(locale === 'ar' ? 'فشل الحذف' : 'Failed to delete');
             }
         } catch (error) {
             console.error(error);
@@ -31,9 +32,9 @@ export function DeleteButton({ clientId, locale }: { clientId: string; locale: s
         <button
             onClick={handleDelete}
             disabled={loading}
-            className="text-red-600 hover:text-red-900"
+            className="text-red-400 hover:text-red-300"
         >
-            {loading ? '...' : 'Delete'}
+            {loading ? '...' : (locale === 'ar' ? 'حذف' : 'Delete')}
         </button>
     );
 }
@@ -103,9 +104,9 @@ export function RestoreButton({ clientId, locale }: { clientId: string; locale: 
         <button
             onClick={handleRestore}
             disabled={loading}
-            className="text-green-600 hover:text-green-900"
+            className="text-green-400 hover:text-green-300"
         >
-            {loading ? '...' : 'Restore'}
+            {loading ? '...' : (locale === 'ar' ? 'استعادة' : 'Restore')}
         </button>
     );
 }
