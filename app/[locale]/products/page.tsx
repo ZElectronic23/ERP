@@ -5,6 +5,7 @@ import { useTableData } from '@/hooks/useTableData';
 import { useDelete } from '@/hooks/useDelete';
 import DataTable from '@/components/data/DataTable';
 import ProductModal from '@/components/modals/ProductModal';
+import ServiceModal from '@/components/modals/ServiceModal';
 import Pagination from '@/components/data/Pagination';
 import type { Column } from '@/config/tables';
 import { useState, useEffect, useRef, use } from 'react';
@@ -379,13 +380,19 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                                     </>
                                 )}
 
-                                {/* Deleted services (services tab) */}
+                                {/* Add + Deleted services (services tab) */}
                                 {activeTab === 'services' && (
-                                    <button type="button" onClick={() => router.push(`/${locale}/services/deleted`)}
-                                        title={language === 'ar' ? 'الخدمات المحذوفة' : 'Deleted services'}
-                                        className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0">
-                                        <Image src="/assets/images/delete.svg" alt={language === 'ar' ? 'الخدمات المحذوفة' : 'Deleted services'} width={20} height={20} className="w-5 h-5 object-contain" />
-                                    </button>
+                                    <>
+                                        <button type="button" onClick={handleAdd} title={t('add')}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors flex-shrink-0">
+                                            <Image src="/assets/images/add.png" alt={t('add')} width={20} height={20} className="w-5 h-5 object-contain" />
+                                        </button>
+                                        <button type="button" onClick={() => router.push(`/${locale}/services/deleted`)}
+                                            title={language === 'ar' ? 'الخدمات المحذوفة' : 'Deleted services'}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0">
+                                            <Image src="/assets/images/delete.svg" alt={language === 'ar' ? 'الخدمات المحذوفة' : 'Deleted services'} width={20} height={20} className="w-5 h-5 object-contain" />
+                                        </button>
+                                    </>
                                 )}
                             </div>
                         </div>
@@ -396,7 +403,7 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                         tableName={activeTab}
                         columns={columns}
                         data={paginatedData}
-                        onEdit={activeTab === 'products' ? handleEdit : undefined}
+                        onEdit={handleEdit}
                         onDelete={(id: string) => softDelete(id, idColumn)}
                         idColumn={idColumn}
                         language={language}
@@ -425,6 +432,12 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                 <ProductModal
                     isOpen={isModalOpen} onClose={handleClose} onSuccess={handleSuccess}
                     product={editingProduct} language={language}
+                />
+            )}
+            {activeTab === 'services' && (
+                <ServiceModal
+                    isOpen={isModalOpen} onClose={handleClose} onSuccess={handleSuccess}
+                    service={editingProduct} language={language}
                 />
             )}
         </div>
