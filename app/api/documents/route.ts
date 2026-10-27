@@ -34,6 +34,9 @@ export async function GET(req: NextRequest) {
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
+    const showDeleted = searchParams.get('deleted') === 'true';
+    query = showDeleted ? query.not('deleted_at', 'is', null) : query.is('deleted_at', null);
+
     if (docType) query = query.eq('doc_type', docType);
     if (status) query = query.eq('status', status);
     if (search) query = query.or(`doc_number.ilike.%${search}%,notes.ilike.%${search}%`);

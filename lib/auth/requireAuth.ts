@@ -69,3 +69,13 @@ export async function requireAdmin(): Promise<{ user: AuthedUser; profile: UserP
   if (!authed || !authed.profile.is_admin) return null;
   return authed;
 }
+
+/**
+ * Guard for CEO-only actions (e.g. permanent delete).
+ * role_key is stored mixed-case (e.g. 'CEO'), so compare case-insensitively.
+ */
+export async function requireCeo(): Promise<{ user: AuthedUser; profile: UserProfile } | null> {
+  const authed = await requireUser();
+  if (!authed || (authed.profile.role_key || '').toLowerCase() !== 'ceo') return null;
+  return authed;
+}

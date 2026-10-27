@@ -10,6 +10,7 @@ import {
     permanentDeleteClient
 } from '@/lib/db/queries/clients';
 import { checkPermission } from '@/lib/auth/checkPermissions';
+import { requireCeo } from '@/lib/auth/requireAuth';
 import { logAudit } from '@/lib/audit/log';
 
 export async function GET(request: NextRequest) {
@@ -127,11 +128,6 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (action === 'soft-delete') {
-            const canDelete = await checkPermission(user, 'clients', 'delete');
-            if (!canDelete) {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-            }
-
             const deleted = await softDeleteClient(clientId);
             await logAudit({
                 tableName: 'clients',
@@ -144,11 +140,6 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (action === 'restore') {
-            const canUpdate = await checkPermission(user, 'clients', 'update');
-            if (!canUpdate) {
-                return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-            }
-
             const restored = await restoreClient(clientId);
             await logAudit({
                 tableName: 'clients',
@@ -161,8 +152,8 @@ export async function PATCH(request: NextRequest) {
         }
 
         if (action === 'permanent-delete') {
-            const canPermanentDelete = await checkPermission(user, 'clients', 'permanent_delete');
-            if (!canPermanentDelete) {
+            // الحذف النهائي للمدير التنفيذي (CEO) فقط
+            if (!(await requireCeo())) {
                 return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
             }
 

@@ -9,6 +9,7 @@ import {
   DOC_STATUSES, OFFER_STATUSES, PAYMENT_STATUSES,
 } from '@/lib/documents';
 import { formatDate } from '@/lib/utils';
+import { supabase } from '@/lib/supabaseClient';
 
 interface DocRow {
   id: string;
@@ -22,7 +23,13 @@ interface DocRow {
   clients: { name: string; phone?: string } | null;
   employees: { name: string } | null;
   created_at: string;
+  deleted_at: string | null;
 }
+
+const daysLeft = (deletedAt: string): number => {
+  const elapsed = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000);
+  return Math.max(0, 15 - elapsed);
+};
 
 export default function DocumentsListPage() {
   const t = useTranslations();
@@ -40,6 +47,18 @@ export default function DocumentsListPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [showDeleted, setShowDeleted] = useState(false);
+  const [isCEO, setIsCEO] = useState(false);
+
+  // هل المستخدم الحالي مدير تنفيذي (CEO)؟ (صاحب صلاحية الحذف النهائي)
+  useEffect(() => {
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data } = await supabase.from('users').select('role_key').eq('email', user.email).maybeSingle();
+      setIsCEO((data?.role_key || '').toLowerCase() === 'ceo');
+    })();
+  }, []);
 
   const fetchDocs = async () => {
     setLoading(true);
@@ -48,6 +67,7 @@ export default function DocumentsListPage() {
       if (filterType !== 'all') params.set('type', filterType);
       if (filterStatus !== 'all') params.set('status', filterStatus);
       if (search) params.set('search', search);
+      if (showDeleted) params.set('deleted', 'true');
 
       const res = await fetch(`/api/documents?${params}`);
       const data = await res.json();
@@ -61,7 +81,25 @@ export default function DocumentsListPage() {
     }
   };
 
-  useEffect(() => { fetchDocs(); }, [filterType, filterStatus, search, page]);
+  useEffect(() => { fetchDocs(); }, [filterType, filterStatus, search, page, showDeleted]);
+
+  const softDeleteDoc = async (id: string) => {
+    if (!confirm(label('نقل المستند للمحذوفات؟', 'Move document to trash?'))) return;
+    await fetch(`/api/documents/${id}`, { method: 'DELETE' });
+    fetchDocs();
+  };
+
+  const restoreDoc = async (id: string) => {
+    await fetch(`/api/documents/${id}?action=restore`, { method: 'PATCH' });
+    fetchDocs();
+  };
+
+  const permanentDeleteDoc = async (id: string) => {
+    if (!confirm(label('حذف نهائي لا يمكن التراجع عنه. متأكد؟', 'Permanent delete cannot be undone. Sure?'))) return;
+    const res = await fetch(`/api/documents/${id}?permanent=true`, { method: 'DELETE' });
+    if (!res.ok) alert(label('فشل الحذف النهائي (للمدير التنفيذي فقط)', 'Permanent delete failed (CEO only)'));
+    fetchDocs();
+  };
 
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
@@ -99,12 +137,24 @@ export default function DocumentsListPage() {
               {label(`إجمالي ${total} مستند`, `${total} documents total`)}
             </p>
           </div>
-          <Link
-            href={`/${locale}/documents/new`}
-            className="px-6 py-3 rounded-xl bg-[#DBA935] text-[#3E3B3F] font-bold hover:bg-[#DBA935]/90 transition shadow-lg text-center"
-          >
-            {label('+ مستند جديد', '+ New Document')}
-          </Link>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowDeleted((v) => !v); setPage(1); }}
+              className={`px-4 py-3 rounded-xl font-bold transition shadow-lg text-center text-sm ${showDeleted
+                ? 'bg-red-500/80 text-white hover:bg-red-500'
+                : 'bg-black/30 text-[#C0C0C0] border border-[#DBA935]/20 hover:bg-[#DBA935]/10'}`}
+            >
+              {showDeleted ? label('عرض النشطة', 'Show active') : label('المحذوفة', 'Deleted')}
+            </button>
+            {!showDeleted && (
+              <Link
+                href={`/${locale}/documents/new`}
+                className="px-6 py-3 rounded-xl bg-[#DBA935] text-[#3E3B3F] font-bold hover:bg-[#DBA935]/90 transition shadow-lg text-center"
+              >
+                {label('+ مستند جديد', '+ New Document')}
+              </Link>
+            )}
+          </div>
         </div>
 
         {/* Filters */}
@@ -180,14 +230,37 @@ export default function DocumentsListPage() {
                         <span className="ms-1">{statusBadge(doc.payment_status)}</span>
                       )}
                     </td>
-                    <td className="py-3 px-3">
-                      <Link
-                        href={`/${locale}/documents/${doc.id}`}
-                        className="text-[#DBA935] hover:underline text-xs"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {label('عرض', 'View')}
-                      </Link>
+                    <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
+                      {showDeleted ? (
+                        <div className="flex items-center gap-2 justify-end">
+                          {doc.deleted_at && (
+                            <span className={`text-xs font-medium ${daysLeft(doc.deleted_at) <= 3 ? 'text-red-400' : daysLeft(doc.deleted_at) <= 7 ? 'text-yellow-400' : 'text-green-400'}`}>
+                              {label(`باقي ${daysLeft(doc.deleted_at)} يوم`, `${daysLeft(doc.deleted_at)}d`)}
+                            </span>
+                          )}
+                          <button onClick={() => restoreDoc(doc.id)} className="text-green-400 hover:underline text-xs">
+                            {label('استعادة', 'Restore')}
+                          </button>
+                          {isCEO && (
+                            <button onClick={() => permanentDeleteDoc(doc.id)} className="text-red-400 hover:underline text-xs font-semibold">
+                              {label('حذف نهائي', 'Delete forever')}
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3 justify-end">
+                          <Link
+                            href={`/${locale}/documents/${doc.id}`}
+                            className="text-[#DBA935] hover:underline text-xs"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {label('عرض', 'View')}
+                          </Link>
+                          <button onClick={() => softDeleteDoc(doc.id)} className="text-red-400 hover:underline text-xs">
+                            {label('حذف', 'Delete')}
+                          </button>
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

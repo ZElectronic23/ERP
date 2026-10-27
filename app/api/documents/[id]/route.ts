@@ -1,7 +1,7 @@
 // app/api/documents/[id]/route.ts — Get, Update, Delete single document
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth/requireAuth';
+import { requireUser, requireCeo } from '@/lib/auth/requireAuth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -111,7 +111,8 @@ export async function PUT(
   }
 }
 
-// DELETE /api/documents/[id] — soft delete (set status to cancelled)
+// DELETE /api/documents/[id] — soft delete (set deleted_at).
+// ?permanent=true => permanent delete, CEO only.
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -121,13 +122,53 @@ export async function DELETE(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const { id } = await params;
+    const permanent = new URL(req.url).searchParams.get('permanent') === 'true';
+
+    if (permanent) {
+      // الحذف النهائي للمدير التنفيذي (CEO) فقط
+      if (!(await requireCeo())) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      await supabase.from('document_items').delete().eq('document_id', id);
+      const { error } = await supabase.from('documents').delete().eq('id', id);
+      if (error) throw error;
+      return NextResponse.json({ success: true, permanent: true });
+    }
+
     const { error } = await supabase
       .from('documents')
-      .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+      .update({ deleted_at: new Date().toISOString(), updated_at: new Date().toISOString() })
       .eq('id', id);
     if (error) throw error;
 
     return NextResponse.json({ success: true });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
+
+// PATCH /api/documents/[id]?action=restore — restore a soft-deleted document
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    if (!(await requireUser())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+    const { id } = await params;
+    const action = new URL(req.url).searchParams.get('action');
+
+    if (action === 'restore') {
+      const { error } = await supabase
+        .from('documents')
+        .update({ deleted_at: null, updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (error) throw error;
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

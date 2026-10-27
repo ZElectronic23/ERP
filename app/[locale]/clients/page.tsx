@@ -4,7 +4,12 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { formatDate } from '@/lib/utils';
-import { DeleteButton, RestoreButton } from '@/components/ClientActions';
+import { DeleteButton, RestoreButton, PermanentDeleteButton } from '@/components/ClientActions';
+
+const daysLeft = (deletedAt: string): number => {
+    const elapsed = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000);
+    return Math.max(0, 15 - elapsed);
+};
 
 const translations = {
     ar: {
@@ -94,6 +99,10 @@ export default async function ClientsPage({
         return redirect(`/${locale}/login`);
     }
 
+    // هل المستخدم الحالي مدير تنفيذي (CEO)؟ (صاحب صلاحية الحذف النهائي)
+    const { data: me } = await supabase.from('users').select('role_key').eq('email', user.email).maybeSingle();
+    const isCEO = (me?.role_key || '').toLowerCase() === 'ceo';
+
     const page = parseInt(searchParams.page || '1');
     const search = searchParams.search || '';
     const includeDeleted = searchParams.includeDeleted === 'true';
@@ -172,7 +181,13 @@ export default async function ClientsPage({
                                 <td className="px-6 py-4 whitespace-nowrap">{formatDate(client.created_at, locale)}</td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     {client.deleted_at ? (
-                                        <RestoreButton clientId={client.ClientId} locale={locale} />
+                                        <span className="inline-flex items-center gap-2">
+                                            <span className={`text-xs font-medium ${daysLeft(client.deleted_at) <= 3 ? 'text-red-600' : daysLeft(client.deleted_at) <= 7 ? 'text-yellow-600' : 'text-green-600'}`}>
+                                                {lang === 'ar' ? `باقي ${daysLeft(client.deleted_at)} يوم` : `${daysLeft(client.deleted_at)}d left`}
+                                            </span>
+                                            <RestoreButton clientId={client.ClientId} locale={locale} />
+                                            {isCEO && <PermanentDeleteButton clientId={client.ClientId} locale={locale} />}
+                                        </span>
                                     ) : (
                                         <>
                                             <Link
