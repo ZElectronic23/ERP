@@ -51,6 +51,23 @@ export default function UserMenu() {
         router.push(`/${language}/login`);
     };
 
+    // ===== قائمة الشاشات للتنقل السريع =====
+    const pages: { key: string; href: string; label: { ar: string; en: string }; adminOnly?: boolean }[] = [
+        { key: 'dashboard', href: 'dashboard', label: { ar: 'لوحة التحكم', en: 'Dashboard' } },
+        { key: 'clients', href: 'clients', label: { ar: 'العملاء', en: 'Clients' } },
+        { key: 'products', href: 'products', label: { ar: 'المنتجات والخدمات', en: 'Products & Services' } },
+        { key: 'documents', href: 'documents', label: { ar: 'المستندات', en: 'Documents' } },
+        { key: 'users', href: 'admin/users', label: { ar: 'المستخدمين', en: 'Users' }, adminOnly: true },
+    ];
+    const visiblePages = pages.filter(p => !p.adminOnly || currentUser?.is_admin);
+
+    const goTo = (href: string) => {
+        setShowUserMenu(false);
+        router.push(`/${language}/${href}`);
+    };
+
+    const isActive = (href: string) => pathname?.includes(`/${href}`);
+
     const toggleLanguage = () => {
         const newLocale = language === 'ar' ? 'en' : 'ar';
         if (!locales.includes(pathSegments[1])) {
@@ -87,6 +104,26 @@ export default function UserMenu() {
                                 {currentUser?.full_name || (language === 'ar' ? 'مستخدم' : 'User')}
                             </p>
                             <p className="text-silver text-xs truncate mt-1">{currentUser?.email}</p>
+                        </div>
+
+                        {/* ===== التنقل بين الشاشات ===== */}
+                        <div className="py-1 border-b border-silver/20 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-gold/40 scrollbar-track-transparent">
+                            <p className="px-3 pt-1 pb-0.5 text-[10px] text-gold/70 uppercase tracking-wide">
+                                {language === 'ar' ? 'الشاشات' : 'Screens'}
+                            </p>
+                            {visiblePages.map(p => (
+                                <button
+                                    key={p.key}
+                                    onClick={() => goTo(p.href)}
+                                    className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive(p.href)
+                                        ? 'bg-gold/20 text-gold'
+                                        : 'text-silver hover:bg-gold/10 hover:text-white'
+                                        }`}
+                                >
+                                    <span className={`w-1.5 h-1.5 rounded-full ${isActive(p.href) ? 'bg-gold' : 'bg-silver/40'}`} />
+                                    {p.label[language]}
+                                </button>
+                            ))}
                         </div>
 
                         <button

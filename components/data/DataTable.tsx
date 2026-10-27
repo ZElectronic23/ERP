@@ -18,6 +18,10 @@ interface DataTableProps {
     language?: 'ar' | 'en';
     tableHeaderRef?: RefObject<HTMLTableSectionElement | null>;
     loading?: boolean;
+    /** أقصى ارتفاع لمنطقة الجدول (سكرول داخلي) حتى لا تطول الصفحة */
+    maxHeight?: string;
+    /** أقل عرض للجدول قبل ظهور السكرول الأفقي */
+    minWidth?: string;
 }
 
 export default function DataTable({
@@ -31,6 +35,8 @@ export default function DataTable({
     language = 'ar',
     tableHeaderRef,
     loading = false,
+    maxHeight = 'calc(100dvh - 240px)',
+    minWidth = '760px',
 }: DataTableProps) {
     const t = useTranslations();
 
@@ -170,38 +176,43 @@ export default function DataTable({
         );
     }
 
+    const hasActions = !!(onEdit || onDelete || onRestore);
+    const align = language === 'ar' ? 'text-right' : 'text-left';
+
     return (
-        <div className="w-full overflow-x-auto">
-            <table className="w-full">
-                <thead ref={tableHeaderRef} className="bg-[#2a2a2a]">
+        <div
+            className="w-full overflow-auto rounded-xl border border-[#3E3B3F] scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent"
+            style={{ maxHeight }}
+        >
+            <table className="w-full border-collapse" style={{ minWidth }}>
+                {/* الهيدر ثابت رأسياً (sticky) ويتحرك أفقياً مع البيانات */}
+                <thead ref={tableHeaderRef} className="sticky top-0 z-20">
                     <tr>
                         {columns.map((col) => (
                             <th
                                 key={col.key}
-                                className={`px-2 py-2 text-right text-xs font-medium text-silver border-b border-[#3E3B3F] break-words whitespace-normal ${col.className || ''
-                                    }`}
-                                style={{ maxWidth: '150px' }}
+                                className={`sticky top-0 bg-[#242428] px-2.5 py-2.5 ${align} text-[11px] sm:text-xs font-semibold text-gold/90 border-b border-gold/20 whitespace-nowrap ${col.className || ''}`}
                             >
-                                {getColumnLabel(col.key)}
+                                {col.label && col.label.trim() ? col.label : getColumnLabel(col.key)}
                             </th>
                         ))}
-                        {(onEdit || onDelete || onRestore) && (
-                            <th className="px-2 py-2 text-right text-xs font-medium text-silver border-b border-[#3E3B3F] break-words whitespace-normal" style={{ maxWidth: '100px' }}>
+                        {hasActions && (
+                            <th className={`sticky top-0 bg-[#242428] px-2.5 py-2.5 ${align} text-[11px] sm:text-xs font-semibold text-gold/90 border-b border-gold/20 whitespace-nowrap`}>
                                 {t('actions')}
                             </th>
                         )}
                     </tr>
                 </thead>
-                <tbody className="divide-y divide-[#3E3B3F]">
+                <tbody>
                     {data.map((row, index) => (
                         <tr
                             key={row[idColumn] || index}
-                            className="hover:bg-[#2a2a2a]/50 transition-colors"
+                            className="odd:bg-white/[0.02] hover:bg-gold/10 transition-colors border-b border-[#3E3B3F]/60 last:border-0"
                         >
                             {columns.map((col) => (
                                 <td
                                     key={col.key}
-                                    className={`px-2 py-2 text-sm ${col.className || ''}`}
+                                    className={`px-2.5 py-2 text-xs sm:text-sm align-middle whitespace-nowrap ${col.className || ''}`}
                                 >
                                     {col.render
                                         ? col.render(row[col.key], row)
@@ -209,11 +220,11 @@ export default function DataTable({
                                     }
                                 </td>
                             ))}
-                            {(onEdit || onDelete || onRestore) && (
-                                <td className="px-2 py-2">
+                            {hasActions && (
+                                <td className="px-2.5 py-2 whitespace-nowrap">
                                     <TableActions
-                                        onEdit={() => onEdit?.(row)}
-                                        onDelete={() => onDelete?.(row[idColumn])}
+                                        onEdit={onEdit ? () => onEdit(row) : undefined}
+                                        onDelete={onDelete ? () => onDelete(row[idColumn]) : undefined}
                                         onRestore={onRestore ? () => onRestore(row[idColumn]) : undefined}
                                         showRestore={showDeleted && !!row.deleted_at}
                                         language={language}

@@ -20,6 +20,8 @@ export interface SearchParams {
     lowStock?: number | null;
     orderBy?: string;
     orderDirection?: 'asc' | 'desc';
+    // عمود الكود المستخدم في البحث بالكود (products: product_id، services: service_id)
+    codeColumn?: string;
     // إزالة page و limit لجلب كل البيانات
 }
 
@@ -68,7 +70,7 @@ export function useTableData(
                 // البحث بالكود
                 if (searchParams.code || (searchParams.search && searchParams.searchBy === 'code')) {
                     const searchCode = searchParams.code || searchParams.search;
-                    query = query.ilike('product_id', `%${searchCode}%`)
+                    query = query.ilike(searchParams.codeColumn || 'product_id', `%${searchCode}%`)
                 }
 
                 // البحث بالبريد الإلكتروني
@@ -163,6 +165,7 @@ export function useTableData(
         searchParams.lowStock,
         searchParams.orderBy,
         searchParams.orderDirection,
+        searchParams.codeColumn,
         refreshKey,
     ])
 

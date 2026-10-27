@@ -6,50 +6,44 @@ import { useDelete } from '@/hooks/useDelete';
 import DataTable from '@/components/data/DataTable';
 import ProductModal from '@/components/modals/ProductModal';
 import Pagination from '@/components/data/Pagination';
-import Header from '@/components/Header'; // ✅ استخدام الهيدر الموحد
-import { tableConfigs } from '@/config/tables';
 import type { Column } from '@/config/tables';
-import { useState, useEffect, useRef, useCallback, use } from 'react';
+import { useState, useEffect, useRef, use } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import Image from 'next/image';
-import UserMenu from '@/components/UserMenu';
 import CategoryDropdown from '@/components/CategoryDropdown';
 import Dropdown from '@/components/ui/Dropdown';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 
 interface ProductsPageProps {
     params: Promise<{ locale: string }>;
 }
 
+type TabKey = 'products' | 'services';
+
 export default function ProductsPage({ params }: ProductsPageProps) {
     const { locale } = use(params);
     const t = useTranslations();
     const router = useRouter();
-    const pathname = usePathname();
     const language = locale as 'ar' | 'en';
 
     // ===== Refs =====
-    const tableContainerRef = useRef<HTMLDivElement>(null);
-    const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
-    const floatingScrollRef = useRef<HTMLDivElement>(null);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    const autocompleteRef = useRef<HTMLDivElement>(null);
+
+    // ===== Tab (المنتجات / الخدمات) =====
+    const [activeTab, setActiveTab] = useState<TabKey>('products');
+    const idColumn = activeTab === 'products' ? 'product_id' : 'service_id';
 
     // ===== State =====
     const [filters, setFilters] = useState({
         search: '', searchBy: 'name', category: '', minPrice: '', maxPrice: '', lowStock: ''
     });
-    const [showLeftScroll, setShowLeftScroll] = useState(false);
-    const [showRightScroll, setShowRightScroll] = useState(false);
     const [isClient, setIsClient] = useState(false);
     const [imagesLoaded, setImagesLoaded] = useState(false);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingProduct, setEditingProduct] = useState<any>(null);
-    const [isWeatherOpen, setIsWeatherOpen] = useState(false); // قد لا نحتاجه الآن لكن نتركه
-    const [weatherData, setWeatherData] = useState<any>(null);
-    const [weatherLoading, setWeatherLoading] = useState(false);
     const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
     const [showAutocomplete, setShowAutocomplete] = useState(false);
-    const autocompleteRef = useRef<HTMLDivElement>(null);
 
     // ===== Pagination =====
     const [currentPage, setCurrentPage] = useState(1);
@@ -57,36 +51,35 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     const [paginatedData, setPaginatedData] = useState<any[]>([]);
 
     // ===== Data =====
-    const { data, loading, error, refresh, totalCount } = useTableData('products', {
+    const { data, loading, error, refresh } = useTableData(activeTab, {
         search: filters.searchBy === 'code' ? '' : filters.search,
         code: filters.searchBy === 'code' ? filters.search : '',
+        codeColumn: idColumn,
         filters: { category: filters.category },
         priceRange: { min: filters.minPrice, max: filters.maxPrice },
-        lowStock: filters.lowStock ? parseInt(filters.lowStock) : null,
-        orderBy: 'product_id',
+        lowStock: activeTab === 'products' && filters.lowStock ? parseInt(filters.lowStock) : null,
+        orderBy: idColumn,
         orderDirection: 'asc',
     });
-    const { softDelete } = useDelete('products', () => refresh());
-    const config = tableConfigs.products;
+    const { softDelete } = useDelete(activeTab, () => refresh());
+
     const uniqueCategories = Array.from(new Set(
         data.map((p: any) => p.category).filter((c: any): c is string => Boolean(c))
     ));
 
     useEffect(() => {
         const start = (currentPage - 1) * pageLimit;
-        const end = start + pageLimit;
-        setPaginatedData(data.slice(start, end));
+        setPaginatedData(data.slice(start, start + pageLimit));
     }, [data, currentPage, pageLimit]);
 
     const totalPages = Math.ceil(data.length / pageLimit) || 1;
 
-    // ===== Init =====
+    // ===== Init: preload images =====
     useEffect(() => {
         setIsClient(true);
         const urls = [
-            '/assets/images/cloud.svg', '/assets/images/left.svg', '/assets/images/right.svg',
-            '/assets/images/search.ico', '/assets/images/add.png', '/assets/images/ERP.svg',
-            '/assets/images/BG.png', '/assets/images/product.svg'
+            '/assets/images/search.ico', '/assets/images/add.png',
+            '/assets/images/ERP.svg', '/assets/images/BG.png', '/assets/images/product.svg'
         ];
         let n = 0;
         urls.forEach(url => {
@@ -95,74 +88,35 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         });
     }, []);
 
-    // ===== مزامنة التمرير الأفقي =====
-    useEffect(() => {
-        const container = tableContainerRef.current;
-        const floatingHeader = floatingScrollRef.current;
-        if (!container || !floatingHeader) return;
-
-        const onContainerScroll = () => {
-            floatingHeader.scrollLeft == container.scrollLeft;
-            const { scrollLeft, scrollWidth, clientWidth } = container;
-            setShowLeftScroll(scrollLeft > 10);
-            setShowRightScroll(scrollLeft < scrollWidth - clientWidth - 10);
-        };
-
-        const onFloatingScroll = () => {
-            container.scrollLeft = floatingHeader.scrollLeft;
-        };
-
-        container.addEventListener('scroll', onContainerScroll, { passive: true });
-        floatingHeader.addEventListener('scroll', onFloatingScroll, { passive: true });
-
-        onContainerScroll();
-
-        return () => {
-            container.removeEventListener('scroll', onContainerScroll);
-            floatingHeader.removeEventListener('scroll', onFloatingScroll);
-        };
-    }, []);
-
-    // مزامنة عروض الأعمدة
-    const syncColumnWidths = useCallback(() => {
-        const origThs = tableHeaderRef.current?.querySelectorAll('th');
-        const floatThs = floatingScrollRef.current?.querySelectorAll('th');
-        if (!origThs?.length || !floatThs?.length) return;
-        origThs.forEach((th, i) => {
-            const fth = floatThs[i] as HTMLElement | undefined;
-            if (!fth) return;
-            const w = (th as HTMLElement).offsetWidth;
-            fth.style.width = `${w}px`;
-            fth.style.minWidth = `${w}px`;
-            fth.style.maxWidth = `${w}px`;
-        });
-    }, []);
-
-    useEffect(() => {
-        if (loading) return;
-        const t1 = setTimeout(syncColumnWidths, 150);
-        const t2 = setTimeout(syncColumnWidths, 500);
-        return () => { clearTimeout(t1); clearTimeout(t2); };
-    }, [data.length, loading, syncColumnWidths]);
-
-    // ===== Autocomplete =====
+    // ===== Close autocomplete on outside click =====
     useEffect(() => {
         const handler = (e: MouseEvent) => {
             const target = e.target as Node;
-            if (
-                !autocompleteRef.current?.contains(target) &&
-                !searchInputRef.current?.contains(target)
-            ) setShowAutocomplete(false);
+            if (!autocompleteRef.current?.contains(target) && !searchInputRef.current?.contains(target)) {
+                setShowAutocomplete(false);
+            }
         };
         document.addEventListener('mousedown', handler);
         return () => document.removeEventListener('mousedown', handler);
     }, []);
 
-    // ===== Autocomplete Search =====
-    const searchProducts = async (val: string) => {
+    // ===== Switch tab: reset filters & page =====
+    const switchTab = (tab: TabKey) => {
+        if (tab === activeTab) return;
+        setActiveTab(tab);
+        setFilters({ search: '', searchBy: 'name', category: '', minPrice: '', maxPrice: '', lowStock: '' });
+        setSearchSuggestions([]);
+        setShowAutocomplete(false);
+        setCurrentPage(1);
+        if (searchInputRef.current) searchInputRef.current.value = '';
+    };
+
+    // ===== Autocomplete =====
+    const searchItems = async (val: string) => {
         if (val.length < 2) { setSearchSuggestions([]); setShowAutocomplete(false); return; }
-        const { data: r } = await supabase.from('products')
-            .select('product_id, name')
+        const { data: r } = await supabase.from(activeTab)
+            .select(`${idColumn}, name`)
+            .is('deleted_at', null)
             .ilike('name', `%${val}%`)
             .limit(6);
         if (r?.length) { setSearchSuggestions(r); setShowAutocomplete(true); }
@@ -170,15 +124,14 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     };
 
     const handleSuggestionClick = (item: any) => {
-        const name = item.name as string;
-        if (searchInputRef.current) searchInputRef.current.value = name;
+        if (searchInputRef.current) searchInputRef.current.value = item.name;
         setShowAutocomplete(false);
         setSearchSuggestions([]);
-        setFilters(f => ({ ...f, search: name, searchBy: 'name' }));
+        setFilters(f => ({ ...f, search: item.name, searchBy: 'name' }));
         setCurrentPage(1);
     };
 
-    // ===== Apply Filters =====
+    // ===== Apply / reset filters =====
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
@@ -207,51 +160,50 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     const handleClose = () => { setIsModalOpen(false); setEditingProduct(null); };
     const handleSuccess = () => { refresh(); handleClose(); };
 
-    const doScrollLeft = () => tableContainerRef.current?.scrollBy({ left: -300, behavior: 'smooth' });
-    const doScrollRight = () => tableContainerRef.current?.scrollBy({ left: 300, behavior: 'smooth' });
-
-    // ===== Columns =====
+    // ===== Columns per tab =====
     const imageColumn: Column = {
         key: 'image',
         label: language === 'ar' ? 'صورة' : 'Image',
         type: 'image',
         render: (_: any, row: any) => (
             <div className="flex justify-center">
-                {row.image
-                    ? <Image src={row.image} alt={row.name} width={30} height={30} className="rounded object-cover" />
-                    : <Image src="/assets/images/product.svg" alt="product" width={30} height={30} className="rounded object-cover opacity-70" />
-                }
+                <Image
+                    src={row.image || '/assets/images/product.svg'}
+                    alt={row.name || 'product'}
+                    width={30}
+                    height={30}
+                    className={`rounded object-cover ${row.image ? '' : 'opacity-70'}`}
+                />
             </div>
         ),
         className: 'text-center'
     };
 
-    const baseColumns = config.columns.filter(col => col.key !== 'image');
-
-    const columns: Column[] = [
+    const productColumns: Column[] = [
         imageColumn,
-        ...baseColumns.map((col: any) => ({
-            ...col,
-            type: col.type || 'text',
-            className: 'text-[12px] px-1 py-1'
-        }))
+        { key: 'product_id', label: t('productCode'), type: 'text' },
+        { key: 'name', label: t('productName'), type: 'text' },
+        { key: 'category', label: t('category'), type: 'text' },
+        { key: 'sell_price', label: t('sellPrice'), type: 'currency' },
+        { key: 'cost_price', label: t('costPrice'), type: 'currency' },
+        { key: 'stock_quantity', label: t('quantity'), type: 'number' },
+        { key: 'unit', label: t('unit'), type: 'text' },
     ];
 
-    const colLabels = columns.map(col => {
-        const map: Record<string, Record<string, string>> = {
-            image: { ar: 'صورة', en: 'Image' },
-            product_id: { ar: t('productCode'), en: t('productCode') },
-            name: { ar: t('productName'), en: t('productName') },
-            category: { ar: t('category'), en: t('category') },
-            sell_price: { ar: t('sellPrice'), en: t('sellPrice') },
-            cost_price: { ar: t('costPrice'), en: t('costPrice') },
-            stock_quantity: { ar: t('quantity'), en: t('quantity') },
-            unit: { ar: t('unit'), en: t('unit') },
-        };
-        return map[col.key]?.[language] ?? col.label ?? col.key;
-    });
+    const serviceColumns: Column[] = [
+        { key: 'service_id', label: language === 'ar' ? 'الكود' : 'Code', type: 'text' },
+        { key: 'name', label: language === 'ar' ? 'الاسم' : 'Name', type: 'text' },
+        { key: 'category', label: language === 'ar' ? 'الفئة' : 'Category', type: 'text' },
+        { key: 'sell_price', label: language === 'ar' ? 'سعر البيع' : 'Sell Price', type: 'currency' },
+        { key: 'cost_price', label: language === 'ar' ? 'التكلفة' : 'Cost', type: 'currency' },
+        { key: 'unit', label: language === 'ar' ? 'الوحدة' : 'Unit', type: 'text' },
+        { key: 'estimated_hours', label: language === 'ar' ? 'ساعات مقدرة' : 'Est. Hours', type: 'number' },
+        { key: 'assigned_department', label: language === 'ar' ? 'القسم' : 'Department', type: 'text' },
+    ];
 
-    // ===== Loading / Error Screens =====
+    const columns = activeTab === 'products' ? productColumns : serviceColumns;
+
+    // ===== Loading / Error =====
     if (!isClient || !imagesLoaded) {
         return (
             <div className="min-h-screen flex items-center justify-center"
@@ -278,22 +230,40 @@ export default function ProductsPage({ params }: ProductsPageProps) {
         );
     }
 
+    const tabLabel = (tab: TabKey) =>
+        tab === 'products'
+            ? (language === 'ar' ? 'المنتجات' : 'Products')
+            : (language === 'ar' ? 'الخدمات' : 'Services');
+
     return (
         <div
             className="min-h-screen"
             style={{ backgroundImage: "url('/assets/images/BG.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
             dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
-
-
-            <div className="p-4 md:p-6">
-                <div className="bg-darkwhite/0 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
-                    <div className="mb-3">
-                        <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t('products')}</h1>
+            <div className="p-3 md:p-5">
+                <div className="bg-black/20 backdrop-blur-md p-3 md:p-5 rounded-3xl shadow-2xl border border-white/10">
+                    {/* ===== Tabs ===== */}
+                    <div className="mb-4 flex items-center gap-2">
+                        {(['products', 'services'] as TabKey[]).map(tab => (
+                            <button
+                                key={tab}
+                                onClick={() => switchTab(tab)}
+                                className={`px-4 py-1.5 rounded-full text-sm font-alata transition-all ${activeTab === tab
+                                    ? 'bg-gold text-black shadow-lg shadow-gold/20'
+                                    : 'bg-white/5 text-silver hover:text-gold hover:bg-gold/10 border border-gold/20'
+                                    }`}
+                            >
+                                {tabLabel(tab)}
+                            </button>
+                        ))}
+                        <span className="ms-auto text-silver/70 text-xs">
+                            {data.length} {language === 'ar' ? 'عنصر' : 'items'}
+                        </span>
                     </div>
 
-                    {/* ==================== SEARCH BAR ==================== */}
-                    <form onSubmit={handleSubmit} className="mb-6 w-full" style={{ position: 'relative', zIndex: 50 }}>
+                    {/* ===== Search bar ===== */}
+                    <form onSubmit={handleSubmit} className="mb-4 w-full" style={{ position: 'relative', zIndex: 50 }}>
                         <div className="bg-[#1a1a1e]/90 backdrop-blur-xl rounded-xl border border-gold/30 p-2 shadow-xl">
                             <div className="flex flex-wrap items-center gap-1">
                                 {/* Input + Autocomplete */}
@@ -304,11 +274,9 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                                         name="search"
                                         autoComplete="off"
                                         defaultValue={filters.search}
-                                        onChange={e => searchProducts(e.target.value)}
-                                        onKeyDown={e => {
-                                            if (e.key === 'Escape') setShowAutocomplete(false);
-                                            if (e.key === 'Enter') setShowAutocomplete(false);
-                                        }}
+                                        placeholder={language === 'ar' ? 'بحث...' : 'Search...'}
+                                        onChange={e => searchItems(e.target.value)}
+                                        onKeyDown={e => { if (e.key === 'Escape' || e.key === 'Enter') setShowAutocomplete(false); }}
                                         className="w-full px-3 py-1.5 bg-[#0a0a0c] border border-silver/30 rounded-full text-white text-xs focus:outline-none focus:border-gold transition-all"
                                     />
                                     {showAutocomplete && searchSuggestions.length > 0 && (
@@ -320,15 +288,12 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                                         >
                                             {searchSuggestions.map((item: any) => (
                                                 <div
-                                                    key={item.product_id}
-                                                    onMouseDown={(e) => {
-                                                        e.preventDefault();
-                                                        handleSuggestionClick(item);
-                                                    }}
+                                                    key={item[idColumn]}
+                                                    onMouseDown={(e) => { e.preventDefault(); handleSuggestionClick(item); }}
                                                     className="px-3 py-2 flex items-center justify-between border-b border-silver/10 last:border-0 hover:bg-gold/20 cursor-pointer transition-colors"
                                                 >
                                                     <span className="text-white text-xs">{item.name}</span>
-                                                    <span className="text-gold text-[10px] opacity-60">#{item.product_id}</span>
+                                                    <span className="text-gold text-[10px] opacity-60">#{item[idColumn]}</span>
                                                 </div>
                                             ))}
                                         </div>
@@ -347,7 +312,7 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                                     className="min-w-[65px]"
                                 />
 
-                                {/* CategoryDropdown */}
+                                {/* Category */}
                                 <CategoryDropdown
                                     categories={uniqueCategories}
                                     selectedCategory={filters.category}
@@ -355,39 +320,31 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                                     language={language}
                                 />
 
-                                {/* lowStock */}
-                                <Dropdown
-                                    options={[
-                                        { value: '', label: t('quantity') },
-                                        { value: '5', label: '5' },
-                                        { value: '10', label: '10' },
-                                        { value: '20', label: '20' },
-                                        { value: '50', label: '50' }
-                                    ]}
-                                    value={filters.lowStock}
-                                    onChange={(val) => setFilters(f => ({ ...f, lowStock: val }))}
-                                    language={language}
-                                    className="min-w-[60px]"
-                                />
+                                {/* lowStock (products only) */}
+                                {activeTab === 'products' && (
+                                    <Dropdown
+                                        options={[
+                                            { value: '', label: t('quantity') },
+                                            { value: '5', label: '5' },
+                                            { value: '10', label: '10' },
+                                            { value: '20', label: '20' },
+                                            { value: '50', label: '50' }
+                                        ]}
+                                        value={filters.lowStock}
+                                        onChange={(val) => setFilters(f => ({ ...f, lowStock: val }))}
+                                        language={language}
+                                        className="min-w-[60px]"
+                                    />
+                                )}
 
                                 {/* price range */}
                                 <div className="flex items-center gap-0.5 bg-[#0a0a0c] border border-silver/30 rounded-full px-1.5 py-1">
                                     <span className="text-silver text-[9px]">$</span>
-                                    <input
-                                        type="number"
-                                        name="minPrice"
-                                        defaultValue={filters.minPrice}
-                                        placeholder="0"
-                                        className="w-9 bg-transparent text-white text-[9px] focus:outline-none"
-                                    />
+                                    <input type="number" name="minPrice" defaultValue={filters.minPrice} placeholder="0"
+                                        className="w-9 bg-transparent text-white text-[9px] focus:outline-none" />
                                     <span className="text-silver text-[9px]">-</span>
-                                    <input
-                                        type="number"
-                                        name="maxPrice"
-                                        defaultValue={filters.maxPrice}
-                                        placeholder="0"
-                                        className="w-9 bg-transparent text-white text-[9px] focus:outline-none"
-                                    />
+                                    <input type="number" name="maxPrice" defaultValue={filters.maxPrice} placeholder="0"
+                                        className="w-9 bg-transparent text-white text-[9px] focus:outline-none" />
                                 </div>
 
                                 {/* Search */}
@@ -404,96 +361,38 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                                     </svg>
                                 </button>
 
-                                {/* Add */}
-                                <button type="button" onClick={handleAdd} title={t('add')}
-                                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors flex-shrink-0">
-                                    <Image src="/assets/images/add.png" alt={t('add')} width={20} height={20} className="w-5 h-5 object-contain" />
-                                </button>
-
-                                {/* Deleted products */}
-                                <button
-                                    type="button"
-                                    onClick={() => router.push(`/${locale}/products/deleted`)}
-                                    title={t('deletedProducts')}
-                                    className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0"
-                                >
-                                    <Image src="/assets/images/delete.svg" alt={t('deletedProducts')} width={20} height={20} className="w-5 h-5 object-contain" />
-                                </button>
+                                {/* Add + Deleted (products only) */}
+                                {activeTab === 'products' && (
+                                    <>
+                                        <button type="button" onClick={handleAdd} title={t('add')}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-gold/20 transition-colors flex-shrink-0">
+                                            <Image src="/assets/images/add.png" alt={t('add')} width={20} height={20} className="w-5 h-5 object-contain" />
+                                        </button>
+                                        <button type="button" onClick={() => router.push(`/${locale}/products/deleted`)} title={t('deletedProducts')}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-500/20 transition-colors flex-shrink-0">
+                                            <Image src="/assets/images/delete.svg" alt={t('deletedProducts')} width={20} height={20} className="w-5 h-5 object-contain" />
+                                        </button>
+                                    </>
+                                )}
                             </div>
                         </div>
                     </form>
 
-                    {/* ==================== TABLE ==================== */}
-                    <div className="relative w-full">
-                        {/* Floating Header */}
-                        <div
-                            ref={floatingScrollRef}
-                            className="absolute top-0 left-0 right-0 overflow-x-auto scrollbar-none bg-[#2a2a2a] border-b border-[#3E3B3F]"
-                            style={{ zIndex: 10 }}
-                            dir={language === 'ar' ? 'rtl' : 'ltr'}
-                        >
-                            <table style={{ tableLayout: 'fixed', width: '100%', minWidth: '800px' }}>
-                                <thead>
-                                    <tr>
-                                        {colLabels.map((label, i) => (
-                                            <th
-                                                key={i}
-                                                className="px-2 py-2 text-xs font-medium text-silver"
-                                                style={{ textAlign: language === 'ar' ? 'right' : 'left', maxWidth: '150px' }}
-                                            >
-                                                {label}
-                                            </th>
-                                        ))}
-                                        <th className="px-2 py-2 text-xs font-medium text-silver text-center" style={{ maxWidth: '100px' }}>
-                                            {t('edit')}
-                                        </th>
-                                    </tr>
-                                </thead>
-                            </table>
-                        </div>
+                    {/* ===== Table ===== */}
+                    <DataTable
+                        tableName={activeTab}
+                        columns={columns}
+                        data={paginatedData}
+                        onEdit={activeTab === 'products' ? handleEdit : undefined}
+                        onDelete={activeTab === 'products' ? (id: string) => softDelete(id, idColumn) : undefined}
+                        idColumn={idColumn}
+                        language={language}
+                        loading={loading}
+                        maxHeight="calc(100dvh - 300px)"
+                        minWidth={activeTab === 'products' ? '820px' : '860px'}
+                    />
 
-                        {/* Original Table */}
-                        <div
-                            ref={tableContainerRef}
-                            className="overflow-auto scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent"
-                            style={{ maxHeight: 'calc(100vh - 280px)' }}
-                        >
-                            {loading ? (
-                                <div className="p-8 text-center">
-                                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-gold" />
-                                    <p className="text-silver text-xs mt-2">{t('loading')}</p>
-                                </div>
-                            ) : (
-                                <DataTable
-                                    tableName="products"
-                                    columns={columns}
-                                    data={paginatedData}
-                                    onEdit={handleEdit}
-                                    onDelete={(id: string) => softDelete(id, 'product_id')}
-                                    idColumn="product_id"
-                                    language={language}
-                                    tableHeaderRef={tableHeaderRef}
-                                    loading={loading}
-                                />
-                            )}
-                        </div>
-
-                        {/* أزرار التمرير الجانبية */}
-                        <div className="absolute top-1/2 -translate-y-1/2 left-0 right-0 pointer-events-none flex justify-between px-1" style={{ zIndex: 5 }}>
-                            {showLeftScroll && (
-                                <button onClick={doScrollLeft} className="pointer-events-auto w-7 h-7 flex items-center justify-center bg-gold/20 hover:bg-gold/40 rounded-full transition-colors">
-                                    <Image src="/assets/images/left.svg" alt={t('scrollLeft')} width={28} height={28} className="w-6 h-6 object-contain" />
-                                </button>
-                            )}
-                            {showRightScroll && (
-                                <button onClick={doScrollRight} className="pointer-events-auto w-7 h-7 flex items-center justify-center bg-gold/20 hover:bg-gold/40 rounded-full transition-colors">
-                                    <Image src="/assets/images/right.svg" alt={t('scrollRight')} width={28} height={28} className="w-6 h-6 object-contain" />
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Pagination */}
+                    {/* ===== Pagination ===== */}
                     <div className="mt-4">
                         <Pagination
                             currentPage={currentPage}
@@ -509,10 +408,12 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                 </div>
             </div>
 
-            <ProductModal
-                isOpen={isModalOpen} onClose={handleClose} onSuccess={handleSuccess}
-                product={editingProduct} language={language}
-            />
+            {activeTab === 'products' && (
+                <ProductModal
+                    isOpen={isModalOpen} onClose={handleClose} onSuccess={handleSuccess}
+                    product={editingProduct} language={language}
+                />
+            )}
         </div>
     );
 }

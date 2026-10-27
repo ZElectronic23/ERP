@@ -156,19 +156,18 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
                             <p className="text-red-400 text-sm">{error}</p>
                         </div>
                     )}
-                    <div className="relative w-full">
-                        <div className="overflow-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent">
-                            <DataTable
-                                tableName="products"
-                                columns={columns}
-                                data={data}
-                                language={language}
-                                loading={loading}
-                                onRestore={handleRestore}
-                                showDeleted={true}
-                            />
-                        </div>
-                    </div>
+                    <DataTable
+                        tableName="products"
+                        columns={columns}
+                        data={data}
+                        language={language}
+                        loading={loading}
+                        onRestore={handleRestore}
+                        showDeleted={true}
+                        idColumn="product_id"
+                        maxHeight="calc(100dvh - 220px)"
+                        minWidth="820px"
+                    />
                 </div>
             </div>
 
