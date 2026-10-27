@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useTranslations } from 'next-intl';
-import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
   DOC_TYPE_LIST, DocType, getDocTypeLabel, formatCurrency,
@@ -33,9 +33,8 @@ const daysLeft = (deletedAt: string): number => {
 
 export default function DocumentsListPage() {
   const t = useTranslations();
-  const pathname = usePathname();
   const router = useRouter();
-  const locale = pathname?.split('/')[1] || 'ar';
+  const locale = useLocale();
   const isRTL = locale === 'ar';
   const label = (ar: string, en: string) => (isRTL ? ar : en);
 

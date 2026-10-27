@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { usePathname, useParams } from 'next/navigation';
+import { useParams } from 'next/navigation';
+import { useLocale } from 'next-intl';
 import DocumentEditor from '@/components/documents/DocumentEditor';
 import DocumentPreview from '@/components/documents/DocumentPreview';
 import { DocumentData, LineItem } from '@/lib/documents';
 
 export default function ViewDocumentPage() {
-  const pathname = usePathname();
   const params = useParams();
-  const locale = pathname?.split('/')[1] || 'ar';
+  const locale = useLocale();
   const isRTL = locale === 'ar';
   const documentId = params?.id as string;
 

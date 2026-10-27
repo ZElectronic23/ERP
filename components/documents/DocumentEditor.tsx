@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useTranslations } from 'next-intl';
-import { usePathname, useRouter } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
+import { useRouter } from 'next/navigation';
 import {
   DOC_TYPES, DOC_TYPE_LIST, DocType, DocumentData, LineItem,
   createEmptyDocument, calculateLineItem, calculateDocumentTotals,
@@ -20,9 +20,8 @@ interface Props {
 
 export default function DocumentEditor({ initialData, documentId }: Props) {
   const t = useTranslations();
-  const pathname = usePathname();
   const router = useRouter();
-  const locale = pathname?.split('/')[1] || 'ar';
+  const locale = useLocale();
   const isRTL = locale === 'ar';
 
   // ─── Document State ───────────────────────────────────────

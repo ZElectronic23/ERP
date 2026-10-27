@@ -1,12 +1,10 @@
 'use client';
 
 import DocumentEditor from '@/components/documents/DocumentEditor';
-import { useTranslations } from 'next-intl';
-import { usePathname } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
 
 export default function NewDocumentPage() {
-  const pathname = usePathname();
-  const locale = pathname?.split('/')[1] || 'ar';
+  const locale = useLocale();
   const isRTL = locale === 'ar';
 
   return (
