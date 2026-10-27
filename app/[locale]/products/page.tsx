@@ -54,6 +54,7 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     // ===== Data =====
     const { data, loading, error, refresh } = useTableData(activeTab, {
         search: filters.searchBy === 'code' ? '' : filters.search,
+        searchBy: filters.searchBy as 'name' | 'code',
         code: filters.searchBy === 'code' ? filters.search : '',
         codeColumn: idColumn,
         filters: { category: filters.category },
@@ -74,6 +75,11 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     }, [data, currentPage, pageLimit]);
 
     const totalPages = Math.ceil(data.length / pageLimit) || 1;
+
+    // إعادة الترقيم للصفحة الأولى عند تغيير أي فلتر أو التبويب
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [filters.search, filters.searchBy, filters.category, filters.minPrice, filters.maxPrice, filters.lowStock, activeTab]);
 
     // ===== Init: preload images + honor ?tab=services =====
     useEffect(() => {
@@ -140,15 +146,14 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
         const fd = new FormData(e.currentTarget);
-        setFilters({
+        // searchBy/category/lowStock تُدار عبر الـ dropdowns (ليست حقول نموذج)،
+        // فنحدّث نص البحث والسعر فقط ونحافظ على الباقي.
+        setFilters(f => ({
+            ...f,
             search: (fd.get('search') as string) || '',
-            searchBy: (fd.get('searchBy') as string) || 'name',
-            category: (fd.get('category') as string) || '',
             minPrice: (fd.get('minPrice') as string) || '',
             maxPrice: (fd.get('maxPrice') as string) || '',
-            lowStock: (fd.get('lowStock') as string) || '',
-        });
-        setCurrentPage(1);
+        }));
         setShowAutocomplete(false);
     };
 
