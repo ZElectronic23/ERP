@@ -1,10 +1,15 @@
 import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
+import { requireAdmin } from '@/lib/auth/requireAuth'
 
 export async function POST(request: Request) {
   console.log('========== RESTORE API ==========')
 
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const body = await request.json()
     const { email } = body
 

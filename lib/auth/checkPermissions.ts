@@ -7,10 +7,11 @@ export async function checkPermission(
     action: string
 ): Promise<boolean> {
     // جلب دور المستخدم من جدول users (لدينا custom users)
+    // ملاحظة: المفتاح الأساسي لجدول users هو entity_id وليس id
     const { data: userData, error } = await supabaseAdmin
         .from('users')
         .select('role_key')
-        .eq('id', user.id)
+        .eq('entity_id', user.id)
         .single();
 
     if (error || !userData) return false;

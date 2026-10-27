@@ -1,30 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
-import { cookies } from 'next/headers';
 import { createClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
-
-async function getCurrentUser() {
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-      },
-    }
-  );
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-}
+import { requireAdmin } from '@/lib/auth/requireAuth';
 
 export async function GET() {
   try {
-    const user = await getCurrentUser();
-    if (!user) {
+    if (!(await requireAdmin())) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -50,6 +31,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const body = await request.json();
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -126,6 +110,9 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    if (!(await requireAdmin())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const { searchParams } = new URL(request.url);
     const action = searchParams.get('action');
     const body = await request.json();

@@ -1,6 +1,7 @@
 // app/api/documents/items/route.ts — Search products & services for document line items
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth/requireAuth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,6 +12,9 @@ const supabase = createClient(
 // GET /api/documents/items?search=cam&type=product|service|all&limit=30
 export async function GET(req: NextRequest) {
   try {
+    if (!(await requireUser())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const { searchParams } = new URL(req.url);
     const search = searchParams.get('search') || '';
     const type = searchParams.get('type') || 'all';

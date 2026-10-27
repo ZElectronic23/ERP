@@ -1,6 +1,7 @@
 // app/api/documents/route.ts — List & Create documents
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth/requireAuth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,6 +12,9 @@ const supabase = createClient(
 // GET /api/documents?type=OF&status=draft&page=1&limit=20
 export async function GET(req: NextRequest) {
   try {
+    if (!(await requireUser())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const { searchParams } = new URL(req.url);
     const docType = searchParams.get('type');
     const status = searchParams.get('status');
@@ -52,6 +56,9 @@ export async function GET(req: NextRequest) {
 // POST /api/documents — Create new document with auto-number
 export async function POST(req: NextRequest) {
   try {
+    if (!(await requireUser())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const body = await req.json();
     const { items, ...docData } = body;
 

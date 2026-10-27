@@ -1,6 +1,7 @@
 // app/api/documents/employees/route.ts — List employees for document assignment
 import { createClient } from '@supabase/supabase-js';
 import { NextRequest, NextResponse } from 'next/server';
+import { requireUser } from '@/lib/auth/requireAuth';
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +11,9 @@ const supabase = createClient(
 
 export async function GET(req: NextRequest) {
   try {
+    if (!(await requireUser())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
     const { searchParams } = new URL(req.url);
     const role = searchParams.get('role');
 
