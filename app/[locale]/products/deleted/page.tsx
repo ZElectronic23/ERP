@@ -2,7 +2,6 @@
 
 import { useState, useEffect, use } from 'react';
 import DataTable from '@/components/data/DataTable';
-import Header from '@/components/Header'; // ✅ استخدام الهيدر الموحد
 import { tableConfigs } from '@/config/tables';
 import type { Column } from '@/config/tables';
 import { supabase } from '@/lib/supabaseClient';
@@ -32,8 +31,19 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
     const [weatherData, setWeatherData] = useState<any>(null);
     const [weatherLoading, setWeatherLoading] = useState(false);
     const [isDateExpanded, setIsDateExpanded] = useState(false);
+    const [isCEO, setIsCEO] = useState(false);
 
     const config = tableConfigs.products;
+
+    // تحديد ما إذا كان المستخدم الحالي هو CEO (صاحب صلاحية الحذف النهائي)
+    useEffect(() => {
+        (async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            const { data } = await supabase.from('users').select('role_key').eq('email', user.email).single();
+            setIsCEO((data?.role_key || '').toLowerCase() === 'ceo');
+        })();
+    }, []);
 
     useEffect(() => {
         setIsClient(true);
@@ -78,6 +88,24 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
         }
     };
 
+    // حذف نهائي — متاح للـ CEO فقط (مؤمَّن أيضاً على مستوى قاعدة البيانات بسياسة RLS)
+    const handleHardDelete = async (id: string) => {
+        const { error } = await supabase
+            .from('products')
+            .delete()
+            .eq('product_id', id);
+        if (error) {
+            setError(error.message);
+        } else {
+            await fetchDeletedProducts();
+        }
+    };
+
+    const daysLeft = (deletedAt: string): number => {
+        const elapsed = Math.floor((Date.now() - new Date(deletedAt).getTime()) / 86400000);
+        return Math.max(0, 15 - elapsed);
+    };
+
     const openWeatherPopup = async () => {
         setIsWeatherOpen(true); setWeatherLoading(true);
         try { setWeatherData(await fetchWeatherData(language)); }
@@ -118,6 +146,17 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
             label: language === 'ar' ? 'تاريخ الحذف' : 'Deleted Date',
             type: 'date',
             className: 'text-[12px] px-1 py-1'
+        },
+        {
+            key: 'days_left',
+            label: language === 'ar' ? 'باقي للحذف النهائي' : 'Days left',
+            type: 'text',
+            className: 'text-center text-[12px] px-1 py-1',
+            render: (_: any, row: any) => {
+                const left = daysLeft(row.deleted_at);
+                const cls = left <= 3 ? 'text-red-400' : left <= 7 ? 'text-yellow-400' : 'text-green-400';
+                return <span className={`${cls} font-medium`}>{left} {language === 'ar' ? 'يوم' : 'd'}</span>;
+            }
         }
     ];
 
@@ -141,16 +180,19 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
             style={{ backgroundImage: "url('/assets/images/BG.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
             dir={language === 'ar' ? 'rtl' : 'ltr'}
         >
-            <Header />
-
             <div className="p-4 md:p-6">
                 <div className="bg-darkwhite/70 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-white/10">
-                    <div className="mb-3 flex justify-between items-center">
+                    <div className="mb-2 flex justify-between items-center">
                         <h1 className="text-lg font-alata text-gold drop-shadow-lg">{t('deletedProducts')}</h1>
                         <button onClick={() => router.push(`/${locale}/products`)} className="px-3 py-1 bg-gold/20 rounded-lg text-gold text-xs hover:bg-gold hover:text-darkwhite transition-colors">
                             {t('backToProducts')}
                         </button>
                     </div>
+                    <p className="text-silver/70 text-[11px] mb-3">
+                        {language === 'ar'
+                            ? 'العناصر المحذوفة تبقى هنا 15 يوم ثم تُحذف نهائياً تلقائياً. الحذف النهائي اليدوي متاح للمدير التنفيذي (CEO) فقط.'
+                            : 'Deleted items stay here for 15 days then are permanently removed automatically. Manual permanent delete is available to the CEO only.'}
+                    </p>
                     {error && (
                         <div className="mb-4 p-3 bg-red-500/10 border border-red-500/30 rounded-xl">
                             <p className="text-red-400 text-sm">{error}</p>
@@ -163,10 +205,11 @@ export default function DeletedProductsPage({ params }: DeletedProductsPageProps
                         language={language}
                         loading={loading}
                         onRestore={handleRestore}
+                        onDelete={isCEO ? handleHardDelete : undefined}
                         showDeleted={true}
                         idColumn="product_id"
                         maxHeight="calc(100dvh - 220px)"
-                        minWidth="820px"
+                        minWidth="900px"
                     />
                 </div>
             </div>

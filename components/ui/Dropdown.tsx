@@ -59,7 +59,7 @@ export default function Dropdown({
 
             {isOpen && (
                 <div
-                    className={`absolute top-full mt-1 w-full bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl overflow-hidden z-50 ${language === 'ar' ? 'right-0' : 'left-0'
+                    className={`absolute top-full mt-1 w-full bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl overflow-y-auto overflow-x-hidden max-h-60 scrollbar-thin scrollbar-thumb-gold/50 scrollbar-track-transparent z-50 ${language === 'ar' ? 'right-0' : 'left-0'
                         }`}
                 >
                     {options.map((option) => (
