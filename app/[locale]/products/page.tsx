@@ -14,6 +14,7 @@ import Image from 'next/image';
 import CategoryDropdown from '@/components/CategoryDropdown';
 import Dropdown from '@/components/ui/Dropdown';
 import { useRouter } from 'next/navigation';
+import { exportPriceList, exportInventory } from '@/lib/priceList';
 
 interface ProductsPageProps {
     params: Promise<{ locale: string }>;
@@ -287,6 +288,27 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                         <span className="ms-auto text-silver/70 text-xs">
                             {data.length} {language === 'ar' ? 'عنصر' : 'items'}
                         </span>
+                        {/* Export the CURRENTLY FILTERED set */}
+                        <button
+                            type="button"
+                            onClick={() => exportPriceList(data, activeTab, language)}
+                            disabled={data.length === 0}
+                            className="px-3 py-1.5 rounded-full text-xs font-alata bg-gold/15 text-gold border border-gold/30 hover:bg-gold/30 transition disabled:opacity-40"
+                            title={language === 'ar' ? 'تصدير قائمة الأسعار (النتائج المعروضة)' : 'Export price list (filtered results)'}
+                        >
+                            🧾 {language === 'ar' ? 'تصدير قائمة الأسعار' : 'Export price list'}
+                        </button>
+                        {activeTab === 'products' && (
+                            <button
+                                type="button"
+                                onClick={() => exportInventory(data, language)}
+                                disabled={data.length === 0}
+                                className="px-3 py-1.5 rounded-full text-xs font-alata bg-white/5 text-silver border border-gold/20 hover:bg-gold/10 transition disabled:opacity-40"
+                                title={language === 'ar' ? 'تقرير المخزون (النتائج المعروضة)' : 'Inventory report (filtered results)'}
+                            >
+                                📦 {language === 'ar' ? 'تقرير المخزون' : 'Inventory report'}
+                            </button>
+                        )}
                     </div>
 
                     {/* ===== Market bar: USD rate + inflation ===== */}

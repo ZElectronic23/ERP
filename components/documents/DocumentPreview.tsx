@@ -1,12 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import {
-  DocumentData, LineItem, DOC_TYPES, DocType,
-  COMPANY, BRAND, formatCurrency,
-  OFFER_STATUSES, PAYMENT_STATUSES, PAYMENT_METHODS,
-  DOC_STATUSES, EQUIPMENT_STATUSES,
-} from '@/lib/documents';
+import { DocumentData, DOC_TYPES, COMPANY, BRAND } from '@/lib/documents';
 
 interface ClientInfo {
   name: string;
@@ -29,24 +24,16 @@ interface DocumentPreviewProps {
   locale?: string;
 }
 
-const label = (locale: string, ar: string, en: string) =>
-  locale === 'ar' ? ar : en;
+const label = (locale: string, ar: string, en: string) => (locale === 'ar' ? ar : en);
 
-const fmtDate = (d: string | null, locale: string) => {
+// The official template always uses Western digits + DD/MM/YYYY (as in the reference designs).
+const fmtDate = (d: string | null, _locale?: string) => {
   if (!d) return '—';
   try {
-    return new Date(d).toLocaleDateString(locale === 'ar' ? 'ar-EG' : 'en-GB', {
-      year: 'numeric', month: 'long', day: 'numeric',
-    });
+    return new Date(d).toLocaleDateString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit' });
   } catch {
     return d;
   }
-};
-
-const statusLabel = (value: string | null, lists: readonly { value: string; labelAr: string; labelEn: string }[], locale: string) => {
-  if (!value) return '—';
-  const found = lists.find(s => s.value === value);
-  return found ? (locale === 'ar' ? found.labelAr : found.labelEn) : value;
 };
 
 export default function DocumentPreview({ document: doc, client, employee, locale = 'ar' }: DocumentPreviewProps) {
@@ -55,6 +42,18 @@ export default function DocumentPreview({ document: doc, client, employee, local
   const t = (ar: string, en: string) => label(locale, ar, en);
   const config = DOC_TYPES[doc.doc_type];
   const [pdfBusy, setPdfBusy] = useState(false);
+
+  const isInvoice = doc.doc_type === 'IN';
+  // The official template uses English labels in a LTR layout (only item descriptions are Arabic),
+  // matching the attached reference designs exactly.
+  const title = isInvoice ? 'Invoice' : (doc.doc_type === 'OF' ? 'OFFER' : config.labelEn);
+  const docNoLabel = isInvoice ? 'Invoice No :' : 'Offer No :';
+  const discPct = doc.subtotal > 0 ? Math.round((doc.discount_amount / doc.subtotal) * 100) : 0;
+  const phone = COMPANY.phone.replace('+20-', '0');
+  const email = COMPANY.email.toLowerCase();
+  // Western numerals, matching the reference invoices exactly.
+  const money = (n: number) => `EGP ${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0)}`;
+  const totalPlain = (n: number) => new Intl.NumberFormat('en-US', { useGrouping: false, maximumFractionDigits: 3 }).format(n || 0);
 
   const handleDownloadPdf = async () => {
     const el = printRef.current;
@@ -85,7 +84,7 @@ export default function DocumentPreview({ document: doc, client, employee, local
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
     printWindow.document.write(`<!DOCTYPE html>
-<html dir="${isRTL ? 'rtl' : 'ltr'}" lang="${locale}">
+<html dir="ltr" lang="${locale}">
 <head>
 <meta charset="utf-8"/>
 <title>${doc.doc_number || config.labelEn}</title>
@@ -94,7 +93,7 @@ export default function DocumentPreview({ document: doc, client, employee, local
   *, *::before, *::after { box-sizing: border-box; margin:0; padding:0; }
   body { font-family: 'Cairo', sans-serif; background: #fff; color: #222; }
   @media print {
-    @page { margin: 10mm; size: A4; }
+    @page { margin: 0; size: A4; }
     body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     .no-print { display: none !important; }
   }
@@ -102,19 +101,19 @@ export default function DocumentPreview({ document: doc, client, employee, local
 </head>
 <body>${content.innerHTML}</body></html>`);
     printWindow.document.close();
-    setTimeout(() => printWindow.print(), 400);
+    setTimeout(() => printWindow.print(), 450);
   };
 
   return (
     <div>
-      {/* Separate Print and Download buttons */}
+      {/* Print / Download buttons */}
       <div className="flex flex-wrap gap-3 mb-4 no-print">
         <button
           onClick={handlePrint}
           className="px-5 py-2.5 rounded-xl bg-[#3E3B3F] text-white font-bold hover:bg-[#2a2729] transition shadow-lg flex items-center gap-2"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-          {t('طباعة', 'Print')}
+          {t('معاينة وطباعة', 'Preview & Print')}
         </button>
         <button
           onClick={handleDownloadPdf}
@@ -123,422 +122,132 @@ export default function DocumentPreview({ document: doc, client, employee, local
         >
           ⬇ {pdfBusy ? t('جارٍ التجهيز...', 'Preparing...') : t('تحميل PDF', 'Download PDF')}
         </button>
-        <span className="self-center text-[#C0C0C0] text-xs">{t('هذه معاينة مطابقة للملف الذي سيُطبع/يُحمَّل.', 'This preview matches the printed/downloaded file.')}</span>
+        <span className="self-center text-[#C0C0C0] text-xs">{t('هذه معاينة مطابقة تماماً للملف الذي سيُطبع/يُحمَّل.', 'This preview matches the printed/PDF file exactly.')}</span>
       </div>
 
-      {/* Print Preview Content */}
+      {/* ═══ PRINTABLE TEMPLATE (matches the official Z.Electronic Offer/Invoice design) ═══ */}
       <div
         ref={printRef}
-        className="bg-white text-gray-900 rounded-2xl shadow-2xl overflow-hidden"
-        style={{ fontFamily: "'Cairo', sans-serif", direction: isRTL ? 'rtl' : 'ltr', maxWidth: '210mm' }}
+        className="bg-white"
+        style={{ fontFamily: "'Cairo', sans-serif", direction: 'ltr', width: '210mm', minHeight: '297mm', color: '#222', position: 'relative', overflow: 'hidden', margin: '0 auto' }}
       >
-        {/* ═══ HEADER ═══ */}
-        <div style={{ background: `linear-gradient(135deg, ${BRAND.charcoal} 0%, #2a2729 100%)`, padding: '24px 32px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {/* Logo + Company Name */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <img src="/logo.png" alt="Z.Electronic" style={{ height: '56px', width: 'auto' }} />
-              <div>
-                <h1 style={{ fontFamily: "'Alata', sans-serif", color: BRAND.gold, fontSize: '22px', fontWeight: 700, margin: 0 }}>
-                  Z.Electronic
-                </h1>
-                <p style={{ color: BRAND.silver, fontSize: '11px', margin: '2px 0 0 0' }}>
-                  Technology Services & Solutions
-                </p>
-              </div>
-            </div>
-            {/* Doc Type Badge */}
-            <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-              <div style={{
-                background: BRAND.gold, color: BRAND.charcoal,
-                padding: '8px 20px', borderRadius: '12px',
-                fontWeight: 700, fontSize: '16px',
-                fontFamily: "'Cairo', sans-serif",
-              }}>
-                {isRTL ? config.labelAr : config.labelEn}
-              </div>
-              {doc.doc_number && (
-                <p style={{ color: BRAND.gold, fontSize: '13px', marginTop: '6px', fontWeight: 600 }}>
-                  {doc.doc_number}
-                </p>
-              )}
-            </div>
+        {/* ── HEADER (flag left, QR right — as per the reference) ── */}
+        <div style={{ position: 'relative', height: '190px' }}>
+          {/* gold accent bar top-right */}
+          <div style={{ position: 'absolute', top: 0, right: 0, width: '46%', height: '14px', background: BRAND.gold }} />
+          {/* dark pennant flag with the gold company emblem (left) */}
+          <div style={{ position: 'absolute', top: 0, left: 0, width: '220px', background: BRAND.charcoal, clipPath: 'polygon(0 0, 100% 0, 100% 70%, 50% 100%, 0 70%)', padding: '18px 20px 40px', textAlign: 'center' }}>
+            <img src="/assets/images/logo-emblem.png" alt="Z.Electronic" style={{ width: '150px', height: 'auto', margin: '0 auto', display: 'block' }} />
           </div>
-          {/* Company Info Bar */}
-          <div style={{
-            marginTop: '12px', paddingTop: '12px',
-            borderTop: `1px solid ${BRAND.gold}33`,
-            display: 'flex', flexWrap: 'wrap', gap: '16px',
-            color: BRAND.silver, fontSize: '10px',
-          }}>
-            <span>📍 {isRTL ? COMPANY.addressAr : COMPANY.address}</span>
-            <span>📞 {COMPANY.phone}</span>
-            <span>✉ {COMPANY.email}</span>
-            <span>C.R: {COMPANY.cr}</span>
+          {/* big title */}
+          <div style={{ textAlign: 'center', paddingTop: '48px' }}>
+            <h1 style={{ fontFamily: "'Alata', sans-serif", color: BRAND.charcoal, fontSize: '52px', lineHeight: 1, margin: 0 }}>{title}</h1>
+            {isInvoice && !doc.vat_enabled && (
+              <div style={{ fontWeight: 700, fontSize: '15px', marginTop: '2px' }}>Prices are exclusive of tax</div>
+            )}
+            <div style={{ marginTop: '12px', fontSize: '15px' }}><span style={{ color: '#666' }}>Date : </span><b>{fmtDate(doc.doc_date, locale)}</b></div>
+          </div>
+          {/* QR top-right */}
+          <img src="/qr-links.png" alt="QR" style={{ position: 'absolute', top: '26px', right: '30px', width: '94px', height: '94px' }} />
+        </div>
+
+        {/* ── OFFER TO (left) / TOTAL DUE (right) ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '4px 40px 0' }}>
+          <div>
+            <div style={{ color: BRAND.charcoal, fontWeight: 700, fontSize: '15px' }}>OFFER TO :</div>
+            <div style={{ fontSize: '20px', fontWeight: 700, marginTop: '8px', direction: isRTL ? 'rtl' : 'ltr' }}>{client?.name || '—'}</div>
+            <div style={{ width: '200px', height: '4px', background: BRAND.gold, marginTop: '8px' }} />
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ color: BRAND.charcoal, fontWeight: 700, fontSize: '15px' }}>TOTAL DUE :</div>
+            <div style={{ fontSize: '22px', fontWeight: 700, marginTop: '12px' }}>{money(doc.total)}</div>
           </div>
         </div>
 
-        {/* Gold separator */}
-        <div style={{ height: '3px', background: `linear-gradient(90deg, ${BRAND.gold}, ${BRAND.gold}44, ${BRAND.gold})` }} />
-
-        {/* ═══ DOCUMENT INFO GRID ═══ */}
-        <div style={{ padding: '20px 32px' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
-            {/* Client Info */}
-            <div style={{
-              background: '#f8f7f5', borderRadius: '12px', padding: '16px',
-              border: `1px solid ${BRAND.gold}22`,
-            }}>
-              <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                {t('بيانات العميل', 'Client Information')}
-              </h3>
-              {client ? (
-                <div style={{ fontSize: '12px', lineHeight: '1.8' }}>
-                  <p style={{ fontWeight: 600 }}>{client.name}</p>
-                  {client.company && <p>{client.company}</p>}
-                  {client.phone && <p>📞 {client.phone}</p>}
-                  {client.email && <p>✉ {client.email}</p>}
-                  {client.address && <p>📍 {client.address}</p>}
-                </div>
-              ) : (
-                <p style={{ fontSize: '12px', color: '#999' }}>{t('لم يتم تحديد عميل', 'No client assigned')}</p>
-              )}
-            </div>
-
-            {/* Document Details */}
-            <div style={{
-              background: '#f8f7f5', borderRadius: '12px', padding: '16px',
-              border: `1px solid ${BRAND.gold}22`,
-            }}>
-              <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                {t('تفاصيل المستند', 'Document Details')}
-              </h3>
-              <div style={{ fontSize: '12px', lineHeight: '1.8' }}>
-                <p><strong>{t('التاريخ:', 'Date:')}</strong> {fmtDate(doc.doc_date, locale)}</p>
-                {doc.valid_until && (
-                  <p><strong>{t('صالح حتى:', 'Valid Until:')}</strong> {fmtDate(doc.valid_until, locale)}</p>
-                )}
-                {doc.offer_status && (
-                  <p><strong>{t('الحالة:', 'Status:')}</strong> {statusLabel(doc.offer_status, OFFER_STATUSES, locale)}</p>
-                )}
-                {employee && (
-                  <p><strong>{t('المسؤول:', 'Assigned:')}</strong> {employee.name}{employee.role ? ` (${employee.role})` : ''}</p>
-                )}
-                <p><strong>{t('العملة:', 'Currency:')}</strong> {doc.currency} {doc.currency !== 'EGP' ? `(${t('سعر الصرف:', 'Rate:')} ${doc.exchange_rate})` : ''}</p>
-              </div>
-            </div>
-          </div>
-
-          {/* ═══ VISIT FIELDS (VR, REP) ═══ */}
-          {config.hasVisitFields && (
-            <div style={{
-              background: '#f8f7f5', borderRadius: '12px', padding: '16px', marginBottom: '20px',
-              border: `1px solid ${BRAND.gold}22`,
-            }}>
-              <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                {t('بيانات الزيارة', 'Visit Details')}
-              </h3>
-              <div style={{ fontSize: '12px', lineHeight: '1.8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {doc.visit_date && <p><strong>{t('تاريخ الزيارة:', 'Visit Date:')}</strong> {fmtDate(doc.visit_date, locale)}</p>}
-                {doc.visit_location && <p><strong>{t('الموقع:', 'Location:')}</strong> {doc.visit_location}</p>}
-              </div>
-              {doc.findings && (
-                <div style={{ marginTop: '8px' }}>
-                  <p style={{ fontWeight: 600, fontSize: '12px' }}>{t('النتائج والملاحظات:', 'Findings:')}</p>
-                  <p style={{ fontSize: '12px', whiteSpace: 'pre-wrap' }}>{doc.findings}</p>
-                </div>
-              )}
-              {doc.recommendations && (
-                <div style={{ marginTop: '8px' }}>
-                  <p style={{ fontWeight: 600, fontSize: '12px' }}>{t('التوصيات:', 'Recommendations:')}</p>
-                  <p style={{ fontSize: '12px', whiteSpace: 'pre-wrap' }}>{doc.recommendations}</p>
-                </div>
-              )}
-              {config.hasEquipmentFields && doc.equipment_status && (
-                <p style={{ marginTop: '8px', fontSize: '12px' }}>
-                  <strong>{t('حالة الجهاز:', 'Equipment Status:')}</strong>{' '}
-                  {statusLabel(doc.equipment_status, EQUIPMENT_STATUSES, locale)}
-                </p>
-              )}
-            </div>
-          )}
-
-          {/* ═══ HANDOVER FIELDS (HO) ═══ */}
-          {config.hasHandoverFields && (
-            <div style={{
-              background: '#f8f7f5', borderRadius: '12px', padding: '16px', marginBottom: '20px',
-              border: `1px solid ${BRAND.gold}22`,
-            }}>
-              <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                {t('بيانات التسليم', 'Handover Details')}
-              </h3>
-              <div style={{ fontSize: '12px', lineHeight: '1.8', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                {doc.handover_from && <p><strong>{t('تسليم من:', 'From:')}</strong> {doc.handover_from}</p>}
-                {doc.handover_to && <p><strong>{t('تسليم إلى:', 'To:')}</strong> {doc.handover_to}</p>}
-              </div>
-            </div>
-          )}
-
-          {/* ═══ ITEMS TABLE ═══ */}
-          {config.hasItems && doc.items.length > 0 && (
-            <div style={{ marginBottom: '20px' }}>
-              <h3 style={{ color: BRAND.charcoal, fontSize: '14px', fontWeight: 700, marginBottom: '10px' }}>
-                {t('البنود والأصناف', 'Items & Services')}
-              </h3>
-              <table style={{
-                width: '100%', borderCollapse: 'collapse', fontSize: '11px',
-                border: `1px solid ${BRAND.gold}33`,
-              }}>
-                <thead>
-                  <tr style={{ background: BRAND.charcoal, color: '#fff' }}>
-                    <th style={thStyle}>#</th>
-                    <th style={{ ...thStyle, textAlign: isRTL ? 'right' : 'left', minWidth: '160px' }}>{t('الصنف', 'Item')}</th>
-                    <th style={thStyle}>{t('الوحدة', 'Unit')}</th>
-                    <th style={thStyle}>{t('الكمية', 'Qty')}</th>
-                    <th style={thStyle}>{t('سعر الوحدة', 'Unit Price')}</th>
-                    {doc.items.some(i => i.discountPct > 0) && (
-                      <th style={thStyle}>{t('الخصم %', 'Disc %')}</th>
-                    )}
-                    <th style={thStyle}>{t('الإجمالي', 'Total')}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {doc.items.map((item, idx) => (
-                    <tr key={item.id} style={{ background: idx % 2 === 0 ? '#fff' : '#f9f8f6' }}>
-                      <td style={tdStyle}>{idx + 1}</td>
-                      <td style={{ ...tdStyle, textAlign: isRTL ? 'right' : 'left' }}>
-                        <span style={{ fontWeight: 600 }}>{item.itemName}</span>
-                        {item.category && (
-                          <span style={{ display: 'block', fontSize: '10px', color: '#888' }}>{item.category}</span>
-                        )}
-                      </td>
-                      <td style={tdStyle}>{item.itemUnit}</td>
-                      <td style={tdStyle}>{item.quantity}</td>
-                      <td style={tdStyle}>{formatCurrency(item.unitPrice, locale)}</td>
-                      {doc.items.some(i => i.discountPct > 0) && (
-                        <td style={{ ...tdStyle, color: item.discountPct > 0 ? '#c0392b' : 'inherit' }}>
-                          {item.discountPct > 0 ? `${(item.discountPct * 100).toFixed(1)}%` : '—'}
-                        </td>
-                      )}
-                      <td style={{ ...tdStyle, fontWeight: 600, color: BRAND.charcoal }}>
-                        {formatCurrency(item.lineTotal, locale)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {/* ═══ TOTALS ═══ */}
-              <div style={{
-                marginTop: '0', display: 'flex', justifyContent: isRTL ? 'flex-start' : 'flex-end',
-              }}>
-                <div style={{
-                  width: '280px', background: '#f8f7f5',
-                  border: `1px solid ${BRAND.gold}33`,
-                  borderTop: 'none', borderRadius: '0 0 12px 12px',
-                  padding: '12px 16px', fontSize: '12px',
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                    <span>{t('المجموع الفرعي:', 'Subtotal:')}</span>
-                    <span>{formatCurrency(doc.subtotal, locale)} {t('ج.م', 'EGP')}</span>
-                  </div>
-                  {doc.discount_amount > 0 && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px', color: '#c0392b' }}>
-                      <span>{t('الخصم:', 'Discount:')}</span>
-                      <span>-{formatCurrency(doc.discount_amount, locale)} {t('ج.م', 'EGP')}</span>
-                    </div>
-                  )}
-                  {doc.vat_enabled && (
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span>{t(`ضريبة القيمة المضافة (${(doc.vat_pct * 100).toFixed(0)}%):`, `VAT (${(doc.vat_pct * 100).toFixed(0)}%):`)}</span>
-                      <span>{formatCurrency(doc.vat_amount, locale)} {t('ج.م', 'EGP')}</span>
-                    </div>
-                  )}
-                  <div style={{
-                    display: 'flex', justifyContent: 'space-between',
-                    borderTop: `2px solid ${BRAND.gold}`,
-                    paddingTop: '8px', marginTop: '4px',
-                    fontWeight: 700, fontSize: '14px', color: BRAND.charcoal,
-                  }}>
-                    <span>{t('الإجمالي الكلي:', 'Grand Total:')}</span>
-                    <span style={{ color: BRAND.gold }}>{formatCurrency(doc.total, locale)} {t('ج.م', 'EGP')}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ PAYMENT INFO ═══ */}
-          {config.hasPayment && (
-            <div style={{
-              display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px',
-            }}>
-              {/* Payment Status */}
-              <div style={{
-                background: '#f8f7f5', borderRadius: '12px', padding: '16px',
-                border: `1px solid ${BRAND.gold}22`,
-              }}>
-                <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                  {t('بيانات الدفع', 'Payment Information')}
-                </h3>
-                <div style={{ fontSize: '12px', lineHeight: '1.8' }}>
-                  {doc.payment_status && (
-                    <p><strong>{t('حالة الدفع:', 'Payment Status:')}</strong> {statusLabel(doc.payment_status, PAYMENT_STATUSES, locale)}</p>
-                  )}
-                  {doc.payment_method && (
-                    <p><strong>{t('طريقة الدفع:', 'Payment Method:')}</strong> {statusLabel(doc.payment_method, PAYMENT_METHODS, locale)}</p>
-                  )}
-                  {doc.payment_bank && (
-                    <p><strong>{t('البنك:', 'Bank:')}</strong> {doc.payment_bank}</p>
-                  )}
-                  {doc.payment_ref && (
-                    <p><strong>{doc.payment_method === 'cheque' ? t('رقم الشيك:', 'Cheque No.:') : t('المرجع:', 'Reference:')}</strong> {doc.payment_ref}</p>
-                  )}
-                  {doc.payment_cheque_date && (
-                    <p><strong>{t('استحقاق الشيك:', 'Cheque Due:')}</strong> {fmtDate(doc.payment_cheque_date, locale)}</p>
-                  )}
-                  {doc.due_date && (
-                    <p><strong>{t('تاريخ الاستحقاق:', 'Due Date:')}</strong> {fmtDate(doc.due_date, locale)}</p>
-                  )}
-                  {doc.paid_amount > 0 && (
-                    <p><strong>{t('المبلغ المدفوع:', 'Paid Amount:')}</strong> {formatCurrency(doc.paid_amount, locale)} {t('ج.م', 'EGP')}</p>
-                  )}
-                  {doc.total > 0 && doc.paid_amount > 0 && doc.paid_amount < doc.total && (
-                    <p style={{ color: '#c0392b' }}>
-                      <strong>{t('المتبقي:', 'Remaining:')}</strong> {formatCurrency(doc.total - doc.paid_amount, locale)} {t('ج.م', 'EGP')}
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              {/* Payment Methods Box */}
-              <div style={{
-                background: '#f8f7f5', borderRadius: '12px', padding: '16px',
-                border: `1px solid ${BRAND.gold}22`,
-              }}>
-                <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                  {t('طرق الدفع المتاحة', 'Available Payment Methods')}
-                </h3>
-                <div style={{ fontSize: '11px', lineHeight: '1.8' }}>
-                  <p>💳 <strong>Instapay:</strong> {COMPANY.instapay}</p>
-                  <p>🏦 <strong>{t('تحويل بنكي:', 'Bank Transfer:')}</strong> {COMPANY.bank}</p>
-                  <p style={{ paddingInlineStart: '20px' }}>{t('رقم الحساب:', 'Account:')} {COMPANY.bankAccount}</p>
-                </div>
-                {/* Instapay QR */}
-                <div style={{ marginTop: '8px', textAlign: 'center' }}>
-                  <img src="/qr-instapay.png" alt="Instapay QR" style={{ height: '80px', width: '80px', display: 'inline-block' }} />
-                  <p style={{ fontSize: '9px', color: '#888', marginTop: '4px' }}>Instapay QR</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ WARRANTY ═══ */}
-          {config.hasWarranty && doc.warranty_start && (
-            <div style={{
-              background: `linear-gradient(135deg, ${BRAND.charcoal}11, ${BRAND.gold}11)`,
-              borderRadius: '12px', padding: '16px', marginBottom: '20px',
-              border: `1px solid ${BRAND.gold}33`,
-            }}>
-              <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                🛡️ {t('شهادة الضمان', 'Warranty Certificate')}
-              </h3>
-              <div style={{ fontSize: '12px', lineHeight: '1.8', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '8px' }}>
-                <p><strong>{t('مدة الضمان:', 'Duration:')}</strong> {doc.warranty_months} {t('شهر', 'months')}</p>
-                <p><strong>{t('بداية الضمان:', 'Start:')}</strong> {fmtDate(doc.warranty_start, locale)}</p>
-                <p><strong>{t('نهاية الضمان:', 'End:')}</strong> {fmtDate(doc.warranty_end, locale)}</p>
-              </div>
-            </div>
-          )}
-
-          {/* ═══ TERMS & NOTES ═══ */}
-          {doc.terms && (
-            <div style={{
-              background: '#f8f7f5', borderRadius: '12px', padding: '16px', marginBottom: '20px',
-              border: `1px solid ${BRAND.gold}22`,
-            }}>
-              <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                {t('الشروط والأحكام', 'Terms & Conditions')}
-              </h3>
-              <div style={{ fontSize: '11px', whiteSpace: 'pre-wrap', lineHeight: '1.6', color: '#555' }}>
-                {doc.terms}
-              </div>
-            </div>
-          )}
-
-          {doc.notes && (
-            <div style={{
-              background: '#f8f7f5', borderRadius: '12px', padding: '16px', marginBottom: '20px',
-              border: `1px solid ${BRAND.gold}22`,
-            }}>
-              <h3 style={{ color: BRAND.gold, fontSize: '13px', fontWeight: 700, marginBottom: '8px' }}>
-                {t('ملاحظات', 'Notes')}
-              </h3>
-              <p style={{ fontSize: '11px', whiteSpace: 'pre-wrap', lineHeight: '1.6', color: '#555' }}>
-                {doc.notes}
-              </p>
-            </div>
-          )}
-
-          {/* ═══ SIGNATURES ═══ */}
-          <div style={{
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px',
-            marginBottom: '24px', marginTop: '24px',
-          }}>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ borderBottom: `1px solid ${BRAND.charcoal}`, marginBottom: '8px', height: '40px' }} />
-              <p style={{ fontSize: '12px', fontWeight: 600 }}>
-                {t('توقيع العميل', 'Client Signature')}
-              </p>
-              <p style={{ fontSize: '10px', color: '#888' }}>{client?.name || ''}</p>
-            </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ borderBottom: `1px solid ${BRAND.charcoal}`, marginBottom: '8px', height: '40px' }} />
-              <p style={{ fontSize: '12px', fontWeight: 600 }}>
-                {t('توقيع Z.Electronic', 'Z.Electronic Signature')}
-              </p>
-              <p style={{ fontSize: '10px', color: '#888' }}>{employee?.name || ''}</p>
-            </div>
-          </div>
+        {/* ── Doc number ── */}
+        <div style={{ textAlign: 'center', marginTop: '14px', fontSize: '15px' }}>
+          <span style={{ color: '#666' }}>{docNoLabel} </span><b>{doc.doc_number || '—'}</b>
         </div>
 
-        {/* ═══ FOOTER ═══ */}
-        <div style={{
-          background: BRAND.charcoal, padding: '20px 32px',
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          flexWrap: 'wrap', gap: '16px',
-        }}>
-          {/* Policy Link */}
-          <div style={{ fontSize: '10px', color: BRAND.silver, maxWidth: '300px' }}>
-            <p style={{ fontWeight: 600, color: BRAND.gold, marginBottom: '4px' }}>
-              {t('سياسة العملاء', 'Client Policies')}
-            </p>
-            <p>{COMPANY.policyUrl}</p>
-            <p style={{ marginTop: '8px' }}>{t('شكراً لتعاملكم معنا', 'Thank you for choosing Z.Electronic')}</p>
-          </div>
-
-          {/* QR Codes */}
-          <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-              <img src="/qr-links.png" alt="Z.Electronic Links" style={{ height: '64px', width: '64px' }} />
-              <p style={{ fontSize: '8px', color: BRAND.silver, marginTop: '2px' }}>
-                {t('روابطنا', 'Our Links')}
-              </p>
+        {/* ── ITEMS TABLE ── */}
+        <div style={{ padding: '10px 32px 0' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+            <thead>
+              <tr style={{ background: BRAND.charcoal, color: BRAND.gold }}>
+                <th style={{ ...thStyle, textAlign: 'center', width: '52%', fontSize: '15px' }}>Description</th>
+                <th style={{ ...thStyle, fontSize: '15px' }}>Qty</th>
+                <th style={{ ...thStyle, fontSize: '15px' }}>Price</th>
+                <th style={{ ...thStyle, fontSize: '15px' }}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {doc.items.map((item, idx) => (
+                <tr key={item.id} style={{ background: idx % 2 ? '#ececec' : '#f6f6f6' }}>
+                  <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 600, direction: 'rtl' }}>{item.itemName}</td>
+                  <td style={tdStyle}>{item.quantity}</td>
+                  <td style={tdStyle}>{money(item.unitPrice)}</td>
+                  <td style={{ ...tdStyle, fontWeight: 700 }}>{money(item.lineTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {config.hasItems && (
+            <div style={{ textAlign: 'right', fontSize: '10px', color: '#666', marginTop: '5px', direction: 'rtl' }}>
+              عدد مرات تقديم الخدمة / عدد وحدات من المنتج = QTY
             </div>
-            {config.hasPayment && (
-              <div style={{ textAlign: 'center' }}>
-                <img src="/qr-instapay.png" alt="Instapay" style={{ height: '64px', width: '64px' }} />
-                <p style={{ fontSize: '8px', color: BRAND.silver, marginTop: '2px' }}>Instapay</p>
+          )}
+        </div>
+
+        {/* ── BOTTOM: payment (left) + totals (right) ── */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '18px 32px 70px', gap: '24px' }}>
+          {/* Payment method */}
+          <div style={{ fontSize: '11px', maxWidth: '330px', lineHeight: 1.7 }}>
+            <div style={{ fontWeight: 700, fontSize: '15px', marginBottom: '4px' }}>Payment Method</div>
+            <div><i>Instapay :</i> {COMPANY.instapay}</div>
+            <div><i>Cash</i></div>
+            <div><b>Bank Name:</b> {COMPANY.bank}</div>
+            <div><b>Account Number:</b> {COMPANY.bankAccount}</div>
+            <div><b>Beneficiary Name:</b> {COMPANY.instapay}</div>
+            <img src="/qr-instapay.png" alt="Instapay" style={{ width: '82px', height: '82px', marginTop: '6px' }} />
+            {config.hasWarranty && (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{ fontWeight: 700, fontSize: '13px' }}>Warranty Terms</div>
+                <div style={{ color: '#555', whiteSpace: 'pre-wrap' }}>{doc.terms || '-One-year warranty from invoice date on software and hardware.\n-Three months free maintenance (excluding spare parts /visit).'}</div>
               </div>
             )}
+            <div style={{ marginTop: '8px', fontWeight: 700, fontSize: '13px' }}>Policies Center</div>
+            <div style={{ color: '#555' }}>Please review all company policies before the transfer.</div>
           </div>
 
-          {/* Company Logo Small */}
-          <div style={{ textAlign: isRTL ? 'left' : 'right' }}>
-            <img src="/logo.png" alt="Z.Electronic" style={{ height: '32px', opacity: 0.7 }} />
-            <p style={{ fontSize: '9px', color: BRAND.silver, marginTop: '4px' }}>
-              © {new Date().getFullYear()} Z.Electronic
-            </p>
+          {/* Totals */}
+          <div style={{ textAlign: 'right', minWidth: '250px' }}>
+            <div style={{ fontSize: '13px', marginBottom: '4px' }}><span style={{ color: '#666' }}>Sub-total : </span>{money(doc.subtotal)}</div>
+            {doc.discount_amount > 0 && doc.notes && (
+              <div style={{ fontSize: '13px', marginBottom: '4px', direction: isRTL ? 'rtl' : 'ltr' }}><span style={{ color: '#666' }}>Dis-Reason : </span>{(doc.notes || '').split('\n')[0]}</div>
+            )}
+            {doc.discount_amount > 0 && (
+              <div style={{ fontSize: '13px', marginBottom: '6px' }}><span style={{ color: '#666' }}>Dis : </span>{discPct}%</div>
+            )}
+            {doc.vat_enabled && (
+              <div style={{ fontSize: '13px', marginBottom: '6px' }}><span style={{ color: '#666' }}>VAT ({(doc.vat_pct * 100).toFixed(0)}%) : </span>{money(doc.vat_amount)}</div>
+            )}
+            <div style={{ background: BRAND.charcoal, color: BRAND.gold, fontWeight: 700, fontSize: '18px', padding: '8px 18px', borderRadius: '4px', display: 'inline-block' }}>
+              Total : {totalPlain(doc.total)}
+            </div>
+            {/* Official company stamp (C.R: 257524) */}
+            <div style={{ marginTop: '14px' }}>
+              <img src="/assets/images/seal.svg" alt="Z.Electronic Official Stamp" style={{ height: '96px', width: '96px', display: 'inline-block' }} />
+              <div style={{ fontSize: '12px', color: '#555', marginTop: '2px' }}>CEO</div>
+            </div>
+          </div>
+        </div>
+
+        {/* ── FOOTER ── */}
+        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%' }}>
+          <div style={{ height: '12px', background: BRAND.gold, clipPath: 'polygon(0 40%, 100% 0, 100% 100%, 0 100%)' }} />
+          <div style={{ background: BRAND.charcoal, display: 'flex', justifyContent: 'center', gap: '48px', padding: '10px', fontSize: '13px', color: '#fff', fontWeight: 600 }}>
+            <span>📞 {phone}</span>
+            <span>✉ {email}</span>
           </div>
         </div>
       </div>
@@ -546,18 +255,16 @@ export default function DocumentPreview({ document: doc, client, employee, local
   );
 }
 
-// ─── Table Styles ───
+// ─── Table cell styles ───
 const thStyle: React.CSSProperties = {
-  padding: '8px 10px',
+  padding: '9px 10px',
   textAlign: 'center',
-  fontWeight: 600,
-  fontSize: '11px',
+  fontWeight: 700,
   whiteSpace: 'nowrap',
 };
 
 const tdStyle: React.CSSProperties = {
-  padding: '7px 10px',
+  padding: '8px 10px',
   textAlign: 'center',
-  borderBottom: '1px solid #eee',
-  fontSize: '11px',
+  fontSize: '12px',
 };
