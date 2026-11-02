@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { useTranslations } from 'next-intl';
-import { usePathname } from 'next/navigation';
+import { useTranslations, useLocale } from 'next-intl';
+import { usePathname, useRouter } from 'next/navigation';
 import NotificationBell from './NotificationBell';
 import UserMenu from './UserMenu';
 import WeatherPopup from './WeatherPopup';
@@ -13,8 +13,9 @@ export default function Header() {
     // جميع الـ Hooks في الأعلى
     const t = useTranslations();
     const pathname = usePathname();
-    const locale = pathname?.split('/')[1] || 'ar';
-    const language = locale as 'ar' | 'en';
+    const router = useRouter();
+    // language from next-intl (the URL may not carry a locale prefix)
+    const language = useLocale() as 'ar' | 'en';
 
     const [currentTime, setCurrentTime] = useState('');
     const [currentDate, setCurrentDate] = useState('');
@@ -71,44 +72,43 @@ export default function Header() {
                         <NotificationBell />
                     </div>
                     <div className="flex justify-center items-center -my-2 sm:-my-3">
-                        <Image
-                            src="/assets/images/ERP.svg"
-                            alt="ERP"
-                            width={90}
-                            height={90}
-                            className="w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 object-contain"
-                            priority
-                        />
+                        <button onClick={() => router.push(`/${language}/dashboard`)} title={language === 'ar' ? 'الصفحة الرئيسية' : 'Home'} className="cursor-pointer">
+                            <Image
+                                src="/assets/images/ERP.svg"
+                                alt="ERP"
+                                width={90}
+                                height={90}
+                                className="w-14 h-14 sm:w-16 sm:h-16 md:w-18 md:h-18 lg:w-20 lg:h-20 object-contain"
+                                priority
+                            />
+                        </button>
                     </div>
                     <div className="flex justify-end items-center text-silver px-1">
                         <div
                             className="flex items-center gap-1 cursor-pointer hover:border hover:border-gold/50 rounded-full px-1 py-0 transition-all leading-8 sm:leading-9 md:leading-10"
                             onMouseEnter={() => setIsDateExpanded(true)}
                             onMouseLeave={() => setIsDateExpanded(false)}
+                            onClick={openWeatherPopup}
+                            title={fullDate}
                         >
                             <span suppressHydrationWarning className="text-[0.7rem] sm:text-xs md:text-sm lg:text-base">
                                 {currentTime || '--:--'}
                             </span>
                             {isDateExpanded && (
-                                <>
-                                    <span className="text-[0.55rem] sm:text-[0.65rem] md:text-xs text-silver/80">
-                                        {shortDate}
-                                    </span>
-                                    <button
-                                        onClick={openWeatherPopup}
-                                        className="text-gold hover:text-yellow-500 transition-colors"
-                                        title={fullDate}
-                                    >
-                                        <Image
-                                            src="/assets/images/cloud.svg"
-                                            alt={t('weather')}
-                                            width={14}
-                                            height={14}
-                                            className="w-2.5 h-2.5 sm:w-3 sm:h-3 md:w-3.5 md:h-3.5 lg:w-4 lg:h-4 object-contain"
-                                        />
-                                    </button>
-                                </>
+                                <span className="text-[0.55rem] sm:text-[0.65rem] md:text-xs text-silver/80">
+                                    {shortDate}
+                                </span>
                             )}
+                            {/* Weather icon — always visible and clickable (not hover-only) */}
+                            <span className="text-gold hover:text-yellow-500 transition-colors" aria-label={t('weather')}>
+                                <Image
+                                    src="/assets/images/cloud.svg"
+                                    alt={t('weather')}
+                                    width={14}
+                                    height={14}
+                                    className="w-3 h-3 sm:w-3.5 sm:h-3.5 md:w-4 md:h-4 object-contain"
+                                />
+                            </span>
                         </div>
                     </div>
                 </div>

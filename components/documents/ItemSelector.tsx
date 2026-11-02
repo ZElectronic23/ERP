@@ -26,6 +26,8 @@ interface CatalogItem {
 interface ItemSelectorProps {
   onAddItem: (item: LineItem) => void;
   locale: string;
+  defaultTab?: TabFilter;
+  allowedTabs?: TabFilter[];
 }
 
 type TabFilter = 'all' | 'product' | 'service' | 'custom';
@@ -40,7 +42,7 @@ const labels = {
     all: 'الكل',
     products: 'منتجات',
     services: 'خدمات',
-    custom: 'بند مخصص',
+    custom: 'أخرى (يُحسب)',
     addItem: 'إضافة بند',
     noResults: 'لا توجد نتائج',
     loading: 'جاري البحث...',
@@ -61,7 +63,7 @@ const labels = {
     all: 'All',
     products: 'Products',
     services: 'Services',
-    custom: 'Custom Item',
+    custom: 'Other (billed)',
     addItem: 'Add Item',
     noResults: 'No results found',
     loading: 'Searching...',
@@ -83,11 +85,11 @@ const labels = {
 // Component
 // ═══════════════════════════════════════════════════════════════
 
-export default function ItemSelector({ onAddItem, locale }: ItemSelectorProps) {
+export default function ItemSelector({ onAddItem, locale, defaultTab = 'all', allowedTabs }: ItemSelectorProps) {
   const t = locale === 'ar' ? labels.ar : labels.en;
   const isRtl = locale === 'ar';
 
-  const [activeTab, setActiveTab] = useState<TabFilter>('all');
+  const [activeTab, setActiveTab] = useState<TabFilter>(defaultTab);
   const [search, setSearch] = useState('');
   const [results, setResults] = useState<CatalogItem[]>([]);
   const [loading, setLoading] = useState(false);
@@ -202,12 +204,13 @@ export default function ItemSelector({ onAddItem, locale }: ItemSelectorProps) {
   }
 
   // ─── Tabs ────────────────────────────────────────────────
-  const tabs: { key: TabFilter; label: string }[] = [
+  const allTabs: { key: TabFilter; label: string }[] = [
     { key: 'all', label: t.all },
     { key: 'product', label: t.products },
     { key: 'service', label: t.services },
     { key: 'custom', label: t.custom },
   ];
+  const tabs = allowedTabs ? allTabs.filter((tab) => allowedTabs.includes(tab.key)) : allTabs;
 
   return (
     <div ref={containerRef} className="relative" dir={isRtl ? 'rtl' : 'ltr'}>

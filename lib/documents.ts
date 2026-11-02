@@ -52,7 +52,7 @@ export const DOC_TYPES: Record<DocType, DocTypeConfig> = {
     labelAr: 'تقرير زيارة فنية',
     labelEn: 'Visit Report',
     prefix: 'ZE-VR',
-    hasItems: false,
+    hasItems: true,
     hasPayment: false,
     hasWarranty: false,
     hasVisitFields: true,
@@ -125,8 +125,10 @@ export const BRAND = {
 
 export interface PricingInput {
   directCost: number;
-  overheadPct?: number;  // default 0.12
-  riskPct?: number;      // default 0
+  overheadPct?: number;   // default 0.12 (override from app_settings.overhead_pct/100)
+  riskPct?: number;       // default 0
+  minMargin?: number;     // default 0.10 (override from app_settings.min_margin/100)
+  targetMargin?: number;  // default 0.25 (override from app_settings.target_margin/100)
 }
 
 export interface PricingOutput {
@@ -145,8 +147,8 @@ export function calculatePricing(input: PricingInput): PricingOutput {
   const overheadPct = input.overheadPct ?? 0.12;
   const riskPct = input.riskPct ?? 0;
   const loadedCost = input.directCost * (1 + overheadPct) * (1 + riskPct);
-  const minMargin = 0.10;
-  const targetMargin = 0.25;
+  const minMargin = input.minMargin ?? 0.10;
+  const targetMargin = input.targetMargin ?? 0.25;
   const floorPrice = loadedCost / (1 - minMargin);
   const targetPrice = loadedCost / (1 - targetMargin);
   const maxDiscountPct = 1 - (floorPrice / targetPrice);
@@ -196,6 +198,31 @@ export function checkDiscount(
     floorPrice,
     margin: round4(margin),
   };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// PROTECTED SELLING PRICE  (spec Phase 2 — mandatory rule)
+// A market-price decrease or currency depreciation must NEVER auto-reduce an
+// approved selling price. The protected price is never below the approved price,
+// and never below the cost-based floor.
+// ═══════════════════════════════════════════════════════════════
+
+export function protectedSellPrice(
+  approvedSell: number | null | undefined,
+  computedTarget: number,
+  floorPrice: number
+): number {
+  const base = Math.max(computedTarget, floorPrice);
+  if (approvedSell != null && approvedSell > 0) return Math.max(approvedSell, floorPrice);
+  return round2(base);
+}
+
+// A reduction of an already-approved selling price requires explicit authorized approval.
+export function sellPriceReductionNeedsApproval(
+  approvedSell: number | null | undefined,
+  proposedSell: number
+): boolean {
+  return approvedSell != null && approvedSell > 0 && proposedSell < approvedSell - 0.01;
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -322,6 +349,10 @@ export interface DocumentData {
   offer_status: string | null;
   payment_status: string | null;
   payment_method: string | null;
+  payment_ref: string | null;
+  payment_bank: string | null;
+  payment_cheque_date: string | null;
+  unpaid_reason: string | null;
   due_date: string | null;
   paid_amount: number;
   visit_date: string | null;
@@ -369,6 +400,10 @@ export function createEmptyDocument(docType: DocType): DocumentData {
     offer_status: config.key === 'OF' ? 'draft' : null,
     payment_status: config.hasPayment ? 'unpaid' : null,
     payment_method: null,
+    payment_ref: null,
+    payment_bank: null,
+    payment_cheque_date: null,
+    unpaid_reason: null,
     due_date: null,
     paid_amount: 0,
     visit_date: config.hasVisitFields ? today : null,

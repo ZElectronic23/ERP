@@ -61,9 +61,11 @@ export default async function EditClientPage({
             DisValue: formData.get('DisValue') ? parseFloat(formData.get('DisValue') as string) / 100 : null,
             'Client Type': formData.get('Client Type'),
             FollowUpFrequency: formData.get('FollowUpFrequency'),
-            LastFollowUpDate: formData.get('LastFollowUpDate'),
-            NextFollowUpDate: formData.get('NextFollowUpDate'),
+            LastFollowUpDate: formData.get('LastFollowUpDate') || null,
+            NextFollowUpDate: formData.get('NextFollowUpDate') || null,
             FollowUpMethod: formData.get('FollowUpMethod'),
+            client_kind: formData.get('client_kind') || 'actual',
+            notes: formData.get('notes') || null,
         };
 
         const { updateClient } = await import('@/lib/db/queries/clients');
@@ -73,8 +75,8 @@ export default async function EditClientPage({
     }
 
     return (
-        <div className="container mx-auto p-6" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
-            <h1 className="text-2xl font-bold mb-6">Edit Client</h1>
+        <div className="min-h-screen p-4 md:p-6" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
+            <h1 className="text-2xl font-bold mb-6 text-[#DBA935] max-w-4xl mx-auto">{locale === 'ar' ? 'تعديل بيانات العميل' : 'Edit Client'}</h1>
             <ClientForm action={updateClientAction} locale={locale} initialData={client} />
         </div>
     );

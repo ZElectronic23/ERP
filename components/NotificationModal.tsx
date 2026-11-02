@@ -1,7 +1,7 @@
 'use client';
 
-import { useRef, useEffect } from 'react';
-import Image from 'next/image';
+import { useRef, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 
@@ -21,6 +21,9 @@ export default function NotificationModal({ notification, onClose }: Notificatio
     const t = useTranslations();
     const router = useRouter();
     const modalRef = useRef<HTMLDivElement>(null);
+    const [mounted, setMounted] = useState(false);
+
+    useEffect(() => { setMounted(true); }, []);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -46,18 +49,21 @@ export default function NotificationModal({ notification, onClose }: Notificatio
         info: 'bg-blue-500/20 text-blue-400 border-blue-500/30',
     };
 
-    const typeIcons = {
-        success: '/assets/images/success.svg',
-        error: '/assets/images/error.svg',
-        warning: '/assets/images/warning.svg',
-        info: '/assets/images/info.svg',
+    const typeIcons: Record<string, string> = {
+        success: '✓',
+        error: '✕',
+        warning: '⚠',
+        info: 'ℹ',
     };
 
-    return (
-        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+    if (!mounted) return null;
+
+    return createPortal(
+        <div className="fixed inset-0 z-[999999] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            dir={typeof document !== 'undefined' && document.dir === 'rtl' ? 'rtl' : 'ltr'}>
             <div
                 ref={modalRef}
-                className="bg-[#1a1a1e] rounded-2xl border border-gold/30 w-full max-w-md"
+                className="bg-[#1a1a1e] rounded-2xl border border-gold/30 w-full max-w-md shadow-2xl max-h-[85vh] overflow-y-auto"
             >
                 {/* رأس المودال */}
                 <div className="flex justify-between items-center p-4 border-b border-silver/20">
@@ -74,19 +80,13 @@ export default function NotificationModal({ notification, onClose }: Notificatio
 
                 {/* محتوى المودال */}
                 <div className="p-6">
-                    <div className={`flex items-center gap-3 p-4 rounded-xl border ${typeColors[notification.type]}`}>
-                        <div className="w-8 h-8">
-                            <Image
-                                src={typeIcons[notification.type]}
-                                alt={notification.type}
-                                width={32}
-                                height={32}
-                                className="w-8 h-8"
-                            />
+                    <div className={`flex items-start gap-3 p-4 rounded-xl border ${typeColors[notification.type]}`}>
+                        <div className="w-9 h-9 flex-shrink-0 rounded-full flex items-center justify-center text-lg font-bold border border-current/30">
+                            {typeIcons[notification.type] || 'ℹ'}
                         </div>
-                        <div>
+                        <div className="min-w-0">
                             <h3 className="text-white font-semibold">{notification.title}</h3>
-                            <p className="text-sm text-silver/80">{notification.message}</p>
+                            <p className="text-sm text-silver/80 whitespace-pre-wrap break-words">{notification.message}</p>
                         </div>
                     </div>
 
@@ -112,6 +112,7 @@ export default function NotificationModal({ notification, onClose }: Notificatio
                     </div>
                 </div>
             </div>
-        </div>
+        </div>,
+        document.body
     );
 }

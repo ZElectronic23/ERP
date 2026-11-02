@@ -1,6 +1,6 @@
 'use client';
 
-import { translations, Language } from '@/lib/translations'
+import { Language } from '@/lib/translations'
 
 interface WeatherPopupProps {
     isOpen: boolean
@@ -11,7 +11,8 @@ interface WeatherPopupProps {
 }
 
 export default function WeatherPopup({ isOpen, onClose, weatherData, loading, language }: WeatherPopupProps) {
-    const t = translations[language]
+    // Self-contained labels (do not depend on the global translations map, which crashed here).
+    const t = { loading: language === 'ar' ? 'جارٍ التحميل...' : 'Loading...' }
 
     if (!isOpen) return null
 
@@ -63,23 +64,28 @@ export default function WeatherPopup({ isOpen, onClose, weatherData, loading, la
                         // بيانات الطقس العادية
                         <div className="space-y-4">
                             <div className="text-center">
-                                <div className="text-5xl mb-2">🌤️</div>
+                                {/* Icon reflects condition + day/night */}
+                                <div className="text-5xl mb-2">{weatherData.isDay === false ? '🌙' : (weatherData.weatherCode >= 61 ? '🌧️' : weatherData.weatherCode >= 45 ? '🌫️' : weatherData.weatherCode >= 2 ? '⛅' : '☀️')}</div>
                                 <p className="text-3xl font-bold text-white mt-2">{weatherData.temp}°C</p>
                                 <p className="text-silver capitalize">{weatherData.condition}</p>
+                                {/* Day / night badge */}
+                                <span className={`inline-flex items-center gap-1 mt-2 px-2.5 py-0.5 rounded-full text-xs ${weatherData.isDay === false ? 'bg-indigo-500/20 text-indigo-300' : 'bg-amber-400/20 text-amber-300'}`}>
+                                    {weatherData.isDay === false ? '🌙' : '☀️'} {weatherData.isDay === false ? (language === 'ar' ? 'ليل' : 'Night') : (language === 'ar' ? 'نهار' : 'Day')}
+                                </span>
                             </div>
 
                             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-silver/20">
                                 <div>
-                                    <p className="text-silver text-sm">
-                                        {language === 'ar' ? 'الرياح' : 'Wind'}
-                                    </p>
-                                    <p className="text-white font-medium">{weatherData.windSpeed} كم/س</p>
+                                    <p className="text-silver text-sm">{language === 'ar' ? 'الرياح' : 'Wind'}</p>
+                                    <p className="text-white font-medium">{weatherData.windSpeed} {language === 'ar' ? 'كم/س' : 'km/h'}</p>
+                                </div>
+                                <div>
+                                    <p className="text-silver text-sm">{language === 'ar' ? 'الحالة' : 'Status'}</p>
+                                    <p className="text-white font-medium">{weatherData.isDay === false ? (language === 'ar' ? 'ليل' : 'Night') : (language === 'ar' ? 'نهار' : 'Day')}</p>
                                 </div>
                             </div>
 
-                            <p className="text-center text-sm text-silver/70 mt-2">
-                                {weatherData.location}
-                            </p>
+                            <p className="text-center text-sm text-silver/70 mt-2">📍 {weatherData.location}</p>
                         </div>
                     )
                 ) : (

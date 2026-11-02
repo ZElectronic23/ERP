@@ -156,7 +156,7 @@ export default function NotificationBell() {
                 {/* القائمة المنسدلة - عرض w-44 (176px) */}
                 {isOpen && (
                     <div
-                        className="absolute top-full mt-2 w-44 bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl z-[99999] inset-inline-end-0"
+                        className="absolute top-full mt-2 w-80 max-w-[90vw] bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl z-[99999] inset-inline-end-0"
                         style={{ maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}
                     >
                         <div className="p-2 border-b border-silver/20 flex justify-between items-center sticky top-0 bg-[#1a1a1e]">
@@ -196,10 +196,10 @@ export default function NotificationBell() {
                                                         'bg-blue-500'
                                                 }`} />
                                             <div className="flex-1 min-w-0">
-                                                <p className="text-white text-xs font-semibold truncate">
+                                                <p className="text-white text-xs font-semibold">
                                                     {notif.title}
                                                 </p>
-                                                <p className="text-silver/70 text-[10px] truncate">
+                                                <p className="text-silver/70 text-[11px] line-clamp-2 leading-snug">
                                                     {notif.message}
                                                 </p>
                                                 <p className="text-silver/50 text-[8px] mt-0.5">

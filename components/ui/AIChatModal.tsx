@@ -64,10 +64,6 @@ export default function AIChatModal({ isOpen, onClose, pathname }: AIChatModalPr
 
     const handleSend = async () => {
         if (!input.trim() || loading) return;
-        if (!window.puter) {
-            setMessages(prev => [...prev, { role: 'assistant', content: 'Puter.js not loaded. Please refresh the page.' }]);
-            return;
-        }
 
         const userMessage = input.trim();
         setInput('');
@@ -75,16 +71,21 @@ export default function AIChatModal({ isOpen, onClose, pathname }: AIChatModalPr
         setLoading(true);
 
         try {
-            // بناء سياق الصفحة
-            const context = `أنت مساعد ذكي لصفحة ${pageName}. ساعد المستخدم في الأسئلة المتعلقة بهذه الصفحة فقط.`;
-
-            // استدعاء Puter.js مع نموذج NVIDIA Nemotron (مجاني)
-            const response = await window.puter.ai.chat(
-                context + "\n\nسؤال المستخدم: " + userMessage,
-                { model: "nvidia/nemotron-3-nano-30b-a3b:free" }
-            );
-
-            setMessages(prev => [...prev, { role: 'assistant', content: response }]);
+            // Server-side, permission-aware assistant: identifies the authenticated user,
+            // loads their role/permissions from the DB, and answers only within their scope.
+            // Enforcement is on the server (/api/chat) — not the client.
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: userMessage, page: pageName }),
+            });
+            const data = await res.json().catch(() => ({}));
+            const reply = res.ok
+                ? (data.reply || (t('aiError') || 'عذراً، حدث خطأ. حاول مرة أخرى.'))
+                : (res.status === 401
+                    ? 'من فضلك سجّل الدخول لاستخدام المساعد.'
+                    : (data.error || t('aiError') || 'عذراً، حدث خطأ. حاول مرة أخرى.'));
+            setMessages(prev => [...prev, { role: 'assistant', content: reply }]);
         } catch (error) {
             console.error('Chat error:', error);
             setMessages(prev => [

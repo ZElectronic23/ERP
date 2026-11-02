@@ -14,6 +14,8 @@ export type Client = {
     LastFollowUpDate: string | null; // تاريخ بصيغة ISO
     NextFollowUpDate: string | null;
     FollowUpMethod: string | null;
+    client_kind: string | null; // actual | potential
+    notes: string | null;
     created_at: string;
     updated_at: string;
     deleted_at: string | null;
@@ -32,6 +34,8 @@ export type NewClient = {
     LastFollowUpDate?: string | null;
     NextFollowUpDate?: string | null;
     FollowUpMethod?: string | null;
+    client_kind?: string | null;
+    notes?: string | null;
 };
 
 export type UpdateClient = Partial<NewClient>;
@@ -48,11 +52,13 @@ export async function getClients({
     page = 1,
     limit = 50,
     search = '',
+    kind = '',
 }: {
     includeDeleted?: boolean;
     page?: number;
     limit?: number;
     search?: string;
+    kind?: string;
 } = {}) {
     let query = supabaseAdmin
         .from('clients')
@@ -60,6 +66,10 @@ export async function getClients({
 
     if (!includeDeleted) {
         query = query.is('deleted_at', null);
+    }
+
+    if (kind === 'actual' || kind === 'potential') {
+        query = query.eq('client_kind', kind);
     }
 
     if (search) {

@@ -7,13 +7,16 @@ import { useRouter, usePathname } from 'next/navigation';
 import EditUserModal from './modals/EditUserModal';
 import { useTranslations } from 'next-intl';
 import { locales } from '@/config/locales';
+import { buildAccess } from '@/lib/auth/access';
 
 export default function UserMenu() {
     const t = useTranslations();
     const router = useRouter();
     const pathname = usePathname();
     const [currentUser, setCurrentUser] = useState<any>(null);
+    const [permRows, setPermRows] = useState<{ module: string; can_view: boolean }[]>([]);
     const [showUserMenu, setShowUserMenu] = useState(false);
+    const [openGroup, setOpenGroup] = useState<string | null>(null);
     const [editProfileModal, setEditProfileModal] = useState(false);
     const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -31,10 +34,29 @@ export default function UserMenu() {
                     .eq('email', user.email)
                     .single();
                 setCurrentUser(data);
+                if (data?.entity_id) {
+                    const { data: perms } = await supabase
+                        .from('user_permissions')
+                        .select('module, can_view')
+                        .eq('user_id', data.entity_id);
+                    setPermRows(perms || []);
+                }
             }
         };
         fetchCurrentUser();
     }, []);
+
+    // Universal guard: a client account is confined to its own portal — redirect it away from any
+    // internal page (defense-in-depth alongside RLS, the API gates, and the server page guards).
+    useEffect(() => {
+        if (!currentUser) return;
+        const rk = (currentUser.role_key || '').toLowerCase();
+        const isClient = rk === 'client' || rk === 'regular_client' || currentUser.entity_type === 'client';
+        const p = pathname || '';
+        if (isClient && !p.includes('/portal/client') && !p.includes('/login')) {
+            router.replace(`/${language}/portal/client`);
+        }
+    }, [currentUser, pathname, language, router]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -51,15 +73,69 @@ export default function UserMenu() {
         router.push(`/${language}/login`);
     };
 
-    // ===== قائمة الشاشات للتنقل السريع =====
-    const pages: { key: string; href: string; label: { ar: string; en: string }; adminOnly?: boolean }[] = [
-        { key: 'dashboard', href: 'dashboard', label: { ar: 'لوحة التحكم', en: 'Dashboard' } },
-        { key: 'clients', href: 'clients', label: { ar: 'العملاء', en: 'Clients' } },
-        { key: 'products', href: 'products', label: { ar: 'المنتجات والخدمات', en: 'Products & Services' } },
-        { key: 'documents', href: 'documents', label: { ar: 'المستندات', en: 'Documents' } },
-        { key: 'users', href: 'admin/users', label: { ar: 'المستخدمين', en: 'Users' }, adminOnly: true },
+    // ===== الإدارات (مجموعات) للتنقل السريع =====
+    type NavItem = { href: string; label: { ar: string; en: string } };
+    const groups: { key: string; label: { ar: string; en: string }; adminOnly?: boolean; items: NavItem[] }[] = [
+        {
+            key: 'sales', label: { ar: 'المبيعات والعملاء', en: 'Sales & Clients' }, items: [
+                { href: 'clients', label: { ar: 'العملاء', en: 'Clients' } },
+                { href: 'support', label: { ar: 'الدعم وعلاقات العملاء', en: 'Support & CRM' } },
+                { href: 'documents', label: { ar: 'المستندات', en: 'Documents' } },
+                { href: 'invoices', label: { ar: 'الفواتير', en: 'Invoices' } },
+                { href: 'legal', label: { ar: 'الإدارة القانونية', en: 'Legal' } },
+            ]
+        },
+        {
+            key: 'ops', label: { ar: 'المشاريع والصيانة', en: 'Projects & Maintenance' }, items: [
+                { href: 'approvals', label: { ar: 'الاعتمادات', en: 'Approvals' } },
+                { href: 'projects', label: { ar: 'المشاريع', en: 'Projects' } },
+                { href: 'surveys', label: { ar: 'المسح الفني', en: 'Technical Survey' } },
+                { href: 'knowledge', label: { ar: 'مكتبة المعرفة', en: 'Knowledge Library' } },
+                { href: 'maintenance', label: { ar: 'الصيانة', en: 'Maintenance' } },
+            ]
+        },
+        {
+            key: 'inventory', label: { ar: 'المخزون', en: 'Inventory' }, items: [
+                { href: 'products', label: { ar: 'المنتجات والخدمات', en: 'Products & Services' } },
+            ]
+        },
+        {
+            key: 'hr', label: { ar: 'شؤون الموظفين', en: 'Human Resources' }, items: [
+                { href: 'employees', label: { ar: 'الموظفون', en: 'Employees' } },
+                { href: 'hr', label: { ar: 'الحضور والإجازات', en: 'Attendance & Leaves' } },
+                { href: 'payroll', label: { ar: 'الرواتب', en: 'Payroll' } },
+                { href: 'evaluations', label: { ar: 'التقييمات', en: 'Evaluations' } },
+            ]
+        },
+        {
+            key: 'finance', label: { ar: 'المالية', en: 'Finance' }, items: [
+                { href: 'accounting', label: { ar: 'الحسابات والمالية', en: 'Accounting' } },
+                { href: 'market', label: { ar: 'بيانات السوق', en: 'Market Data' } },
+                { href: 'marketing', label: { ar: 'التسويق والدعاية', en: 'Marketing' } },
+            ]
+        },
+        {
+            key: 'partners', label: { ar: 'الشركاء', en: 'Partners' }, items: [
+                { href: 'partners', label: { ar: 'الشركاء', en: 'Partners' } },
+            ]
+        },
+        {
+            key: 'admin', label: { ar: 'الإدارة', en: 'Administration' }, adminOnly: true, items: [
+                { href: 'admin/users', label: { ar: 'المستخدمون والصلاحيات', en: 'Users & Permissions' } },
+                { href: 'admin/org', label: { ar: 'الهيكل التنظيمي', en: 'Organization' } },
+            ]
+        },
     ];
-    const visiblePages = pages.filter(p => !p.adminOnly || currentUser?.is_admin);
+    // Hide modules the user may not access (e.g. a technician never sees Accounting/Payroll).
+    // Same access model as the dashboard; server routes/RLS remain the hard enforcement.
+    const access = buildAccess(currentUser, permRows);
+    const moduleOf = (href: string) => href.split('/')[0]; // 'admin/users' → 'admin'
+    const visibleGroups = currentUser
+        ? groups
+            .filter(g => !g.adminOnly || access.isFull)
+            .map(g => ({ ...g, items: g.items.filter(it => access.has(moduleOf(it.href))) }))
+            .filter(g => g.items.length > 0)
+        : [];
 
     const goTo = (href: string) => {
         setShowUserMenu(false);
@@ -96,8 +172,8 @@ export default function UserMenu() {
 
                 {showUserMenu && (
                     <div
-                        className="absolute top-full mt-2 w-48 bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl z-[999999] inset-inline-end-0"
-                        style={{ minWidth: '180px' }}
+                        className="absolute top-full mt-2 w-64 max-w-[85vw] bg-[#1a1a1e] border border-gold/30 rounded-xl shadow-2xl z-[999999] inset-inline-end-0"
+                        style={{ minWidth: '224px' }}
                     >
                         <div className="p-3 border-b border-silver/20">
                             <p className="text-white font-semibold text-sm truncate">
@@ -106,23 +182,50 @@ export default function UserMenu() {
                             <p className="text-silver text-xs truncate mt-1">{currentUser?.email}</p>
                         </div>
 
-                        {/* ===== التنقل بين الشاشات ===== */}
-                        <div className="py-1 border-b border-silver/20 max-h-56 overflow-y-auto scrollbar-thin scrollbar-thumb-gold/40 scrollbar-track-transparent">
-                            <p className="px-3 pt-1 pb-0.5 text-[10px] text-gold/70 uppercase tracking-wide">
-                                {language === 'ar' ? 'الشاشات' : 'Screens'}
-                            </p>
-                            {visiblePages.map(p => (
-                                <button
-                                    key={p.key}
-                                    onClick={() => goTo(p.href)}
-                                    className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive(p.href)
-                                        ? 'bg-gold/20 text-gold'
-                                        : 'text-silver hover:bg-gold/10 hover:text-white'
-                                        }`}
-                                >
-                                    <span className={`w-1.5 h-1.5 rounded-full ${isActive(p.href) ? 'bg-gold' : 'bg-silver/40'}`} />
-                                    {p.label[language]}
-                                </button>
+                        {/* ===== التنقل بين الإدارات (مجموعات) ===== */}
+                        <div className="py-1 border-b border-silver/20 max-h-72 overflow-y-auto scrollbar-thin scrollbar-thumb-gold/40 scrollbar-track-transparent">
+                            <button onClick={() => goTo('dashboard')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('dashboard') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${isActive('dashboard') ? 'bg-gold' : 'bg-silver/40'}`} />
+                                {language === 'ar' ? 'لوحة التحكم' : 'Dashboard'}
+                            </button>
+                            {(() => {
+                                const rk = (currentUser?.role_key || '').toLowerCase();
+                                const isClient = rk === 'client' || rk === 'regular_client' || currentUser?.entity_type === 'client';
+                                const href = isClient ? 'portal/client' : 'portal/technician';
+                                const label = language === 'ar' ? (isClient ? 'حسابي' : 'بوابتي (الفني)') : (isClient ? 'My account' : 'My portal');
+                                return (
+                                    <button onClick={() => goTo(href)} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive(href) ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive(href) ? 'bg-gold' : 'bg-silver/40'}`} />
+                                        {label}
+                                    </button>
+                                );
+                            })()}
+                            {(() => {
+                                const rk = (currentUser?.role_key || '').toLowerCase();
+                                const isClient = rk === 'client' || rk === 'regular_client' || currentUser?.entity_type === 'client';
+                                if (isClient) return null; // clients use their own portal, not the staff calendar
+                                return (
+                                    <button onClick={() => goTo('calendar')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('calendar') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('calendar') ? 'bg-gold' : 'bg-silver/40'}`} />
+                                        {language === 'ar' ? 'تقويمي' : 'My calendar'}
+                                    </button>
+                                );
+                            })()}
+                            {visibleGroups.map(g => (
+                                <div key={g.key}>
+                                    <button onClick={() => setOpenGroup(openGroup === g.key ? null : g.key)}
+                                        className="w-full px-3 py-2 text-start text-xs transition-colors flex items-center justify-between text-silver hover:bg-gold/10 hover:text-white">
+                                        <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-gold/60" />{g.label[language]}</span>
+                                        <span className="text-gold/70 text-[10px]">{openGroup === g.key ? '▾' : '▸'}</span>
+                                    </button>
+                                    {openGroup === g.key && g.items.map(it => (
+                                        <button key={it.href} onClick={() => goTo(it.href)}
+                                            className={`w-full ps-7 pe-3 py-1.5 text-start text-xs transition-colors flex items-center gap-2 ${isActive(it.href) ? 'bg-gold/20 text-gold' : 'text-silver/90 hover:bg-gold/10 hover:text-white'}`}>
+                                            <span className={`w-1 h-1 rounded-full ${isActive(it.href) ? 'bg-gold' : 'bg-silver/30'}`} />
+                                            {it.label[language]}
+                                        </button>
+                                    ))}
+                                </div>
                             ))}
                         </div>
 

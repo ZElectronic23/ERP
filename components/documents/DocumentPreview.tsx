@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import {
   DocumentData, LineItem, DOC_TYPES, DocType,
   COMPANY, BRAND, formatCurrency,
@@ -54,6 +54,30 @@ export default function DocumentPreview({ document: doc, client, employee, local
   const isRTL = locale === 'ar';
   const t = (ar: string, en: string) => label(locale, ar, en);
   const config = DOC_TYPES[doc.doc_type];
+  const [pdfBusy, setPdfBusy] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    const el = printRef.current;
+    if (!el) return;
+    setPdfBusy(true);
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: '#ffffff', useCORS: true, logging: false });
+      const img = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pw = 210, ph = 297, imgH = canvas.height * pw / canvas.width;
+      let left = imgH, pos = 0;
+      pdf.addImage(img, 'PNG', 0, pos, pw, imgH, undefined, 'FAST'); left -= ph;
+      while (left > 0) { pos = left - imgH; pdf.addPage(); pdf.addImage(img, 'PNG', 0, pos, pw, imgH, undefined, 'FAST'); left -= ph; }
+      pdf.save(`${doc.doc_number || config.labelEn}.pdf`);
+    } catch (e) {
+      console.error(e);
+      alert(t('تعذّر إنشاء PDF — استخدم الطباعة ثم «حفظ كـ PDF».', 'PDF export failed — use Print then "Save as PDF".'));
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
   const handlePrint = () => {
     const content = printRef.current;
@@ -83,15 +107,23 @@ export default function DocumentPreview({ document: doc, client, employee, local
 
   return (
     <div>
-      {/* Print/Download Button */}
-      <div className="flex gap-3 mb-4 no-print">
+      {/* Separate Print and Download buttons */}
+      <div className="flex flex-wrap gap-3 mb-4 no-print">
         <button
           onClick={handlePrint}
-          className="px-6 py-2.5 rounded-xl bg-[#DBA935] text-[#3E3B3F] font-bold hover:bg-[#DBA935]/90 transition shadow-lg flex items-center gap-2"
+          className="px-5 py-2.5 rounded-xl bg-[#3E3B3F] text-white font-bold hover:bg-[#2a2729] transition shadow-lg flex items-center gap-2"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
-          {t('طباعة / تحميل PDF', 'Print / Download PDF')}
+          {t('طباعة', 'Print')}
         </button>
+        <button
+          onClick={handleDownloadPdf}
+          disabled={pdfBusy}
+          className="px-5 py-2.5 rounded-xl bg-[#DBA935] text-[#3E3B3F] font-bold hover:bg-[#DBA935]/90 transition shadow-lg disabled:opacity-50 flex items-center gap-2"
+        >
+          ⬇ {pdfBusy ? t('جارٍ التجهيز...', 'Preparing...') : t('تحميل PDF', 'Download PDF')}
+        </button>
+        <span className="self-center text-[#C0C0C0] text-xs">{t('هذه معاينة مطابقة للملف الذي سيُطبع/يُحمَّل.', 'This preview matches the printed/downloaded file.')}</span>
       </div>
 
       {/* Print Preview Content */}
@@ -355,6 +387,15 @@ export default function DocumentPreview({ document: doc, client, employee, local
                   )}
                   {doc.payment_method && (
                     <p><strong>{t('طريقة الدفع:', 'Payment Method:')}</strong> {statusLabel(doc.payment_method, PAYMENT_METHODS, locale)}</p>
+                  )}
+                  {doc.payment_bank && (
+                    <p><strong>{t('البنك:', 'Bank:')}</strong> {doc.payment_bank}</p>
+                  )}
+                  {doc.payment_ref && (
+                    <p><strong>{doc.payment_method === 'cheque' ? t('رقم الشيك:', 'Cheque No.:') : t('المرجع:', 'Reference:')}</strong> {doc.payment_ref}</p>
+                  )}
+                  {doc.payment_cheque_date && (
+                    <p><strong>{t('استحقاق الشيك:', 'Cheque Due:')}</strong> {fmtDate(doc.payment_cheque_date, locale)}</p>
                   )}
                   {doc.due_date && (
                     <p><strong>{t('تاريخ الاستحقاق:', 'Due Date:')}</strong> {fmtDate(doc.due_date, locale)}</p>

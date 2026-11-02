@@ -24,9 +24,9 @@ export async function GET(
       .from('documents')
       .select(`
         *,
-        clients!documents_client_id_fkey ( id, name, phone, email, address, company_name ),
-        employees!documents_assigned_employee_fkey ( id, name, role, phone ),
-        users!documents_created_by_fkey ( id, full_name, email )
+        clients!documents_client_id_fkey ( id:ClientId, name:ClientName, address:Address ),
+        employees!documents_assigned_employee_fkey ( id:EmployeeID, name:Name, role:Position, phone:PhoneNumber ),
+        users!documents_created_by_fkey ( full_name, email )
       `)
       .eq('id', id)
       .single();

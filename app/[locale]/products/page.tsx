@@ -51,6 +51,23 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     const [pageLimit, setPageLimit] = useState(50);
     const [paginatedData, setPaginatedData] = useState<any[]>([]);
 
+    // ===== Market settings (USD rate + inflation) =====
+    const [usdRate, setUsdRate] = useState('');
+    const [inflation, setInflation] = useState('');
+    const [fxLoading, setFxLoading] = useState(false);
+    useEffect(() => {
+        supabase.from('app_settings').select('key,value').in('key', ['usd_egp', 'inflation_pct']).then(({ data }) => {
+            const m: Record<string, string> = Object.fromEntries((data || []).map((r: any) => [r.key, r.value]));
+            if (m.usd_egp && m.usd_egp !== '0') setUsdRate(m.usd_egp);
+            if (m.inflation_pct) setInflation(m.inflation_pct);
+        });
+    }, []);
+    const refreshUsd = async () => {
+        setFxLoading(true);
+        try { const r = await fetch('/api/market/fx', { method: 'POST' }); const j = await r.json(); if (j.usd_egp) setUsdRate(String(j.usd_egp)); } catch { /* ignore */ } finally { setFxLoading(false); }
+    };
+    const saveInflation = async () => { await supabase.from('app_settings').upsert({ key: 'inflation_pct', value: inflation || '0', updated_at: new Date().toISOString() }); };
+
     // ===== Data =====
     const { data, loading, error, refresh } = useTableData(activeTab, {
         search: filters.searchBy === 'code' ? '' : filters.search,
@@ -270,6 +287,15 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                         <span className="ms-auto text-silver/70 text-xs">
                             {data.length} {language === 'ar' ? 'عنصر' : 'items'}
                         </span>
+                    </div>
+
+                    {/* ===== Market bar: USD rate + inflation ===== */}
+                    <div className="mb-4 flex flex-wrap items-center gap-2 text-xs bg-black/20 rounded-xl border border-gold/20 px-3 py-2">
+                        <span className="text-silver">{language === 'ar' ? 'سعر الدولار' : 'USD'}: <span className="text-gold font-bold">{usdRate ? `${Number(usdRate).toFixed(2)} ${language === 'ar' ? 'ج.م' : 'EGP'}` : '—'}</span></span>
+                        <button type="button" onClick={refreshUsd} disabled={fxLoading} className="px-2 py-1 rounded bg-gold/15 text-gold hover:bg-gold/30 disabled:opacity-50">{fxLoading ? '...' : (language === 'ar' ? 'تحديث' : 'Refresh')}</button>
+                        <span className="text-silver ms-2">{language === 'ar' ? 'التضخم %' : 'Inflation %'}:</span>
+                        <input type="number" value={inflation} onChange={e => setInflation(e.target.value)} onBlur={saveInflation}
+                            className="w-16 px-2 py-1 bg-[#0a0a0c] border border-silver/30 rounded text-white focus:outline-none focus:border-gold" placeholder="0" />
                     </div>
 
                     {/* ===== Search bar ===== */}

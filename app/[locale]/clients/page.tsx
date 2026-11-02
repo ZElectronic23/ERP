@@ -1,9 +1,9 @@
 import { getClients } from '@/lib/db/queries/clients';
+import { guardInternalPage } from '@/lib/auth/guardPage';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { formatDate } from '@/lib/utils';
 import { DeleteButton, RestoreButton, PermanentDeleteButton } from '@/components/ClientActions';
 
 const daysLeft = (deletedAt: string): number => {
@@ -74,12 +74,13 @@ export default async function ClientsPage({
     searchParams,
     params,
 }: {
-    searchParams: Promise<{ page?: string; search?: string; includeDeleted?: string }>;
+    searchParams: Promise<{ page?: string; search?: string; includeDeleted?: string; kind?: string }>;
     params: Promise<{ locale: string }>;
 }) {
     // انتظار params و searchParams (أصبحا async في Next 16)
     const { locale } = await params;
     const sp = await searchParams;
+    await guardInternalPage(locale); // clients/externals cannot see the company client register
 
     const cookieStore = await cookies();
     const supabase = createServerClient(
@@ -107,19 +108,32 @@ export default async function ClientsPage({
     const page = parseInt(sp.page || '1');
     const search = sp.search || '';
     const includeDeleted = sp.includeDeleted === 'true';
+    const kind = sp.kind || '';
 
     const { data: clients, count } = await getClients({
         includeDeleted,
         page,
         limit: 10,
         search,
+        kind,
     });
 
     const totalPages = count ? Math.ceil(count / 10) : 0;
     const lang = locale === 'ar' ? 'ar' : 'en';
     const t = (key: keyof typeof translations[typeof lang]) => translations[lang][key] || key;
 
-    const headers = [t('clientId'), t('clientName'), t('mobile'), t('email'), t('clientType'), t('disValue'), t('createdAt'), t('actions')];
+    const headers = [t('clientId'), t('clientName'), lang === 'ar' ? 'التصنيف' : 'Category', t('mobile'), t('email'), t('clientType'), lang === 'ar' ? 'ملاحظات' : 'Notes', t('actions')];
+    const kindTab = (val: string, labelAr: string, labelEn: string) => {
+        const activeKind = kind === val;
+        return (
+            <Link
+                href={`/${locale}/clients?kind=${val}${search ? `&search=${search}` : ''}`}
+                className={`px-4 py-2 rounded-xl transition text-sm ${activeKind ? 'bg-[#DBA935] text-[#3E3B3F] font-bold' : 'bg-black/30 text-[#C0C0C0] border border-[#DBA935]/20 hover:bg-[#DBA935]/10'}`}
+            >
+                {lang === 'ar' ? labelAr : labelEn}
+            </Link>
+        );
+    };
 
     return (
         <div className="min-h-screen p-4 md:p-6" dir={locale === 'ar' ? 'rtl' : 'ltr'}>
@@ -133,6 +147,13 @@ export default async function ClientsPage({
                         </p>
                     </div>
                     <div className="flex flex-wrap gap-2 items-center">
+                        {!includeDeleted && (
+                            <div className="flex gap-2">
+                                {kindTab('', 'الكل', 'All')}
+                                {kindTab('actual', 'فعليون', 'Actual')}
+                                {kindTab('potential', 'محتملون', 'Potential')}
+                            </div>
+                        )}
                         <form className="flex gap-2">
                             <input
                                 type="text"
@@ -187,12 +208,22 @@ export default async function ClientsPage({
                             ) : clients.map((client) => (
                                 <tr key={client.ClientId} className="odd:bg-white/[0.02] hover:bg-[#DBA935]/10 transition border-b border-[#3E3B3F]/60 text-white">
                                     <td className="py-2.5 px-3 whitespace-nowrap text-[#DBA935] font-medium">{client.ClientId}</td>
-                                    <td className="py-2.5 px-3 whitespace-nowrap">{client.ClientName}</td>
-                                    <td className="py-2.5 px-3 whitespace-nowrap">{client['Mobile No.'] || '—'}</td>
-                                    <td className="py-2.5 px-3 whitespace-nowrap">{client['E-Mail'] || '—'}</td>
+                                    <td className="py-2.5 px-3 whitespace-nowrap">
+                                        {client.deleted_at ? client.ClientName : <Link href={`/${locale}/clients/${client.ClientId}`} className="text-white hover:text-[#DBA935] hover:underline">{client.ClientName}</Link>}
+                                    </td>
+                                    <td className="py-2.5 px-3 whitespace-nowrap">
+                                        {client.client_kind === 'potential'
+                                            ? <span className="px-2 py-0.5 rounded-full text-xs bg-blue-500/20 text-blue-300">{lang === 'ar' ? 'محتمل' : 'Potential'}</span>
+                                            : <span className="px-2 py-0.5 rounded-full text-xs bg-green-500/20 text-green-400">{lang === 'ar' ? 'فعلي' : 'Actual'}</span>}
+                                    </td>
+                                    <td className="py-2.5 px-3 whitespace-nowrap" dir="ltr">{client['Mobile No.'] || '—'}</td>
+                                    <td className="py-2.5 px-3 whitespace-nowrap" dir="ltr">{client['E-Mail'] || '—'}</td>
                                     <td className="py-2.5 px-3 whitespace-nowrap">{client['Client Type'] || '—'}</td>
-                                    <td className="py-2.5 px-3 whitespace-nowrap">{client.DisValue ? `${client.DisValue * 100}%` : '—'}</td>
-                                    <td className="py-2.5 px-3 whitespace-nowrap text-[#C0C0C0]">{formatDate(client.created_at, locale)}</td>
+                                    <td className="py-2.5 px-3 max-w-[220px]">
+                                        {client.notes
+                                            ? <span className="text-[#C0C0C0] text-xs line-clamp-2" title={client.notes}>📝 {client.notes}</span>
+                                            : <span className="text-[#C0C0C0]/40">—</span>}
+                                    </td>
                                     <td className="py-2.5 px-3 whitespace-nowrap">
                                         {client.deleted_at ? (
                                             <span className="inline-flex items-center gap-3">
@@ -225,7 +256,7 @@ export default async function ClientsPage({
                     <div className="flex justify-center items-center mt-5 gap-2">
                         {page > 1 && (
                             <Link
-                                href={`/${locale}/clients?page=${page - 1}&search=${search}&includeDeleted=${includeDeleted}`}
+                                href={`/${locale}/clients?page=${page - 1}&search=${search}&includeDeleted=${includeDeleted}&kind=${kind}`}
                                 className="px-3 py-1 rounded-lg bg-black/30 text-[#C0C0C0] border border-[#DBA935]/20 hover:bg-[#DBA935]/20 transition text-sm"
                             >
                                 {t('previous')}
@@ -234,7 +265,7 @@ export default async function ClientsPage({
                         <span className="text-[#C0C0C0] text-sm px-2">{page} / {totalPages}</span>
                         {page < totalPages && (
                             <Link
-                                href={`/${locale}/clients?page=${page + 1}&search=${search}&includeDeleted=${includeDeleted}`}
+                                href={`/${locale}/clients?page=${page + 1}&search=${search}&includeDeleted=${includeDeleted}&kind=${kind}`}
                                 className="px-3 py-1 rounded-lg bg-black/30 text-[#C0C0C0] border border-[#DBA935]/20 hover:bg-[#DBA935]/20 transition text-sm"
                             >
                                 {t('next')}

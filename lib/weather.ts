@@ -23,97 +23,64 @@ const getWeatherCondition = (code: number, language: Language) => {
     return conditions[code]?.[language] || (language === 'ar' ? 'غير معروف' : 'Unknown')
 }
 
-// دالة جلب بيانات الطقس مع معالجة أخطاء أفضل
-export const fetchWeatherData = async (language: Language) => {
-    return new Promise(async (resolve, reject) => {
-        if (!navigator.geolocation) {
-            reject({
-                error: true,
-                message: language === 'ar'
-                    ? 'متصفحك لا يدعم تحديد الموقع'
-                    : 'Your browser does not support geolocation'
-            })
-            return
-        }
+// Cairo fallback (used when geolocation is unavailable/denied, e.g. inside the desktop app)
+const CAIRO = { lat: 30.0444, lon: 31.2357, ar: 'القاهرة', en: 'Cairo' }
 
+// Fetch weather for given coordinates (shared by the geolocation and fallback paths)
+async function fetchByCoords(latitude: number, longitude: number, language: Language, defaultCity: string) {
+    const weatherResponse = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m&timezone=auto`
+    )
+    if (!weatherResponse.ok) throw new Error('weather service failed')
+    const weatherData = await weatherResponse.json()
+
+    let cityName = defaultCity
+    try {
+        const cityResponse = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=${language}`,
+            { headers: { 'User-Agent': 'ZElectronics-ERP/1.0 (contact@zelectronic.com)' } }
+        )
+        if (cityResponse.ok) {
+            const cityData = await cityResponse.json()
+            cityName = cityData.address?.city || cityData.address?.town || cityData.address?.village || cityData.address?.county || cityName
+        }
+    } catch { /* keep default city */ }
+
+    return {
+        error: false,
+        temp: Math.round(weatherData.current_weather.temperature),
+        condition: getWeatherCondition(weatherData.current_weather.weathercode, language),
+        windSpeed: weatherData.current_weather.windspeed,
+        location: cityName,
+        // Open-Meteo returns is_day (1 = daytime, 0 = night) with current_weather.
+        isDay: weatherData.current_weather.is_day === 1,
+        weatherCode: weatherData.current_weather.weathercode,
+    }
+}
+
+// دالة جلب بيانات الطقس — تستخدم موقع المستخدم، ولو مش متاح ترجع لطقس القاهرة تلقائياً
+export const fetchWeatherData = async (language: Language) => {
+    const cairoCity = language === 'ar' ? CAIRO.ar : CAIRO.en
+    const fallback = () => fetchByCoords(CAIRO.lat, CAIRO.lon, language, cairoCity)
+
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+        return fallback()
+    }
+
+    return new Promise((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(
             async (position) => {
                 try {
-                    const { latitude, longitude } = position.coords
-
-                    // جلب بيانات الطقس من Open-Meteo
-                    const weatherResponse = await fetch(
-                        `https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current_weather=true&hourly=temperature_2m&timezone=auto`
-                    )
-
-                    if (!weatherResponse.ok) {
-                        reject({
-                            error: true,
-                            message: language === 'ar'
-                                ? 'فشل الاتصال بخدمة الطقس'
-                                : 'Failed to connect to weather service'
-                        })
-                        return
-                    }
-
-                    const weatherData = await weatherResponse.json()
-
-                    // جلب اسم المدينة من OpenStreetMap
-                    let cityName = language === 'ar' ? 'موقعك الحالي' : 'Your location'
-
-                    try {
-                        const cityResponse = await fetch(
-                            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=${language}`,
-                            {
-                                headers: {
-                                    'User-Agent': 'ZElectronics-ERP/1.0 (contact@zelectronic.com)'
-                                }
-                            }
-                        )
-
-                        if (cityResponse.ok) {
-                            const cityData = await cityResponse.json()
-                            cityName = cityData.address?.city ||
-                                cityData.address?.town ||
-                                cityData.address?.village ||
-                                cityData.address?.county ||
-                                cityName
-                        }
-                    } catch (cityError) {
-                        console.log('City fetch failed, using default location')
-                    }
-
-                    // تحويل كود الطقس
-                    const weatherCode = weatherData.current_weather.weathercode
-                    const condition = getWeatherCondition(weatherCode, language)
-
-                    resolve({
-                        error: false,
-                        temp: Math.round(weatherData.current_weather.temperature),
-                        condition: condition,
-                        windSpeed: weatherData.current_weather.windspeed,
-                        location: cityName
-                    })
-
-                } catch (error) {
-                    console.error('Weather fetch error:', error)
-                    reject({
-                        error: true,
-                        message: language === 'ar'
-                            ? 'حدث خطأ في الاتصال، الرجاء المحاولة مرة أخرى'
-                            : 'Connection error, please try again'
-                    })
+                    resolve(await fetchByCoords(position.coords.latitude, position.coords.longitude, language, language === 'ar' ? 'موقعك الحالي' : 'Your location'))
+                } catch {
+                    try { resolve(await fallback()) } catch (e) { reject({ error: true, message: language === 'ar' ? 'فشل الاتصال بخدمة الطقس' : 'Failed to connect to weather service' }) }
                 }
             },
-            (error) => {
-                console.error('Geolocation error:', error)
-                reject({
-                    error: true,
-                    message: language === 'ar'
-                        ? 'فشل تحديد الموقع، الرجاء التحقق من صلاحيات الموقع'
-                        : 'Failed to get location, please check location permissions'
-                })
-            }
+            async () => {
+                // geolocation denied/unavailable → fall back to Cairo instead of failing
+                try { resolve(await fallback()) } catch { reject({ error: true, message: language === 'ar' ? 'فشل الاتصال بخدمة الطقس' : 'Failed to connect to weather service' }) }
+            },
+            { timeout: 8000 }
         )
     })
 }

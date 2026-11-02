@@ -10,6 +10,7 @@ import PasswordStrengthMeter from '@/components/PasswordStrengthMeter';
 import { v4 as uuidv4 } from 'uuid';
 import imageCompression from 'browser-image-compression';
 import { useRouter, usePathname } from 'next/navigation';
+import PermissionsModal from '@/components/PermissionsModal';
 
 const USER_TYPES = [
     { value: 'employee' },
@@ -46,6 +47,7 @@ export default function UsersManagementPage({ params }: UsersPageProps) {
     const [viewModalOpen, setViewModalOpen] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [editingUser, setEditingUser] = useState<any>(null);
+    const [permUser, setPermUser] = useState<any>(null);
     const [apiWorking, setApiWorking] = useState(true);
     const [filterStatus, setFilterStatus] = useState<string>('all');
     const [filterType, setFilterType] = useState<string>('all');
@@ -397,13 +399,133 @@ export default function UsersManagementPage({ params }: UsersPageProps) {
 
     const filteredRoles = USER_ROLES.filter(role => role.type === formData.entity_type);
 
+    const LL = (ar: string, en: string) => (language === 'ar' ? ar : en);
+    const TYPE_LABEL: Record<string, { ar: string; en: string }> = { employee: { ar: 'موظف', en: 'Employee' }, partner: { ar: 'شريك', en: 'Partner' }, client: { ar: 'عميل', en: 'Client' } };
+    const ROLE_LABEL: Record<string, { ar: string; en: string }> = {
+        ceo: { ar: 'المدير التنفيذي', en: 'CEO' }, admin: { ar: 'مدير نظام', en: 'Admin' }, manager: { ar: 'مدير', en: 'Manager' }, employee: { ar: 'موظف', en: 'Employee' },
+        tech_partner: { ar: 'شريك فني', en: 'Tech Partner' }, financial_partner: { ar: 'شريك مالي', en: 'Financial Partner' }, investor: { ar: 'مستثمر', en: 'Investor' }, regular_client: { ar: 'عميل', en: 'Client' },
+    };
+    const field = 'w-full px-3 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-white placeholder-silver/50 focus:outline-none focus:border-gold text-sm';
+    const lbl = 'block text-silver mb-1 text-xs';
+
     return (
-        <div
-            className="min-h-screen p-4 md:p-6"
-            style={{ backgroundImage: "url('/assets/images/BG.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }}
-            dir={language === 'ar' ? 'rtl' : 'ltr'}
-        >
-            {/* نفس المكونات (لا تغيير في JSX) */}
+        <div className="min-h-screen p-4 md:p-6" style={{ backgroundImage: "url('/assets/images/BG.png')", backgroundSize: 'cover', backgroundPosition: 'center', backgroundAttachment: 'fixed' }} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+            <div className="bg-black/50 backdrop-blur-sm p-4 md:p-6 rounded-3xl shadow-2xl border border-[#DBA935]/20 max-w-6xl mx-auto">
+                <div className="flex flex-wrap justify-between items-center mb-4 gap-3">
+                    <div>
+                        <h1 className="text-2xl font-bold text-[#DBA935]">{LL('المستخدمون والصلاحيات', 'Users & Permissions')}</h1>
+                        <p className="text-[#C0C0C0] text-sm mt-1">{LL(`إجمالي ${filteredUsers.length} مستخدم`, `${filteredUsers.length} users`)}</p>
+                    </div>
+                    <button onClick={() => { resetForm(); setEditingUser(null); setModalOpen(true); }} className="px-5 py-2 rounded-xl bg-[#DBA935] text-[#3E3B3F] font-bold hover:bg-[#DBA935]/90 transition text-sm">{LL('+ مستخدم جديد', '+ New User')}</button>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                    <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder={LL('بحث بالاسم أو البريد...', 'Search name/email...')} className="flex-1 min-w-[160px] px-3 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-white placeholder-silver/50 focus:outline-none focus:border-gold text-sm" />
+                    <select value={filterType} onChange={e => setFilterType(e.target.value)} className="px-3 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-white text-sm">
+                        <option value="all">{LL('كل الأنواع', 'All types')}</option>
+                        {USER_TYPES.map(ty => <option key={ty.value} value={ty.value}>{LL(TYPE_LABEL[ty.value].ar, TYPE_LABEL[ty.value].en)}</option>)}
+                    </select>
+                    <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-white text-sm">
+                        <option value="all">{LL('كل الحالات', 'All statuses')}</option>
+                        <option value="active">{LL('نشط', 'Active')}</option>
+                        <option value="inactive">{LL('غير نشط', 'Inactive')}</option>
+                        <option value="deleted">{LL('محذوف', 'Deleted')}</option>
+                    </select>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-[#3E3B3F]">
+                    <table className="w-full text-sm" style={{ minWidth: '760px' }}>
+                        <thead><tr className="bg-[#242428] text-[#DBA935]/90">
+                            {[LL('الاسم', 'Name'), LL('البريد', 'Email'), LL('التصنيف', 'Type'), LL('الدور', 'Role'), LL('الحالة', 'Status'), LL('الإجراءات', 'Actions')].map((h, i) => <th key={i} className="py-2.5 px-3 text-start font-semibold border-b border-[#DBA935]/20 whitespace-nowrap">{h}</th>)}
+                        </tr></thead>
+                        <tbody>
+                            {loading ? <tr><td colSpan={6} className="text-center py-10 text-[#C0C0C0]">{LL('جارٍ التحميل...', 'Loading...')}</td></tr>
+                                : filteredUsers.length === 0 ? <tr><td colSpan={6} className="text-center py-10 text-[#C0C0C0]">{LL('لا يوجد مستخدمون', 'No users')}</td></tr>
+                                    : filteredUsers.map((u: any) => (
+                                        <tr key={u.entity_id || u.id} className="odd:bg-white/[0.02] border-b border-[#3E3B3F]/60 text-white">
+                                            <td className="py-2 px-3 whitespace-nowrap">{u.full_name || '—'}</td>
+                                            <td className="py-2 px-3 whitespace-nowrap" dir="ltr">{u.email}</td>
+                                            <td className="py-2 px-3 whitespace-nowrap">{LL(TYPE_LABEL[u.entity_type]?.ar || u.entity_type || '—', TYPE_LABEL[u.entity_type]?.en || u.entity_type || '—')}</td>
+                                            <td className="py-2 px-3 whitespace-nowrap">{LL(ROLE_LABEL[u.role_key]?.ar || u.role_key || '—', ROLE_LABEL[u.role_key]?.en || u.role_key || '—')}{u.is_admin ? ' ★' : ''}</td>
+                                            <td className="py-2 px-3 whitespace-nowrap"><span className={`px-2 py-0.5 rounded-full text-xs ${u.status === 'active' ? 'bg-green-500/20 text-green-400' : u.status === 'deleted' ? 'bg-red-500/20 text-red-400' : 'bg-gray-500/20 text-gray-300'}`}>{LL(u.status === 'active' ? 'نشط' : u.status === 'deleted' ? 'محذوف' : 'غير نشط', u.status || 'inactive')}</span></td>
+                                            <td className="py-2 px-3 whitespace-nowrap">
+                                                <span className="inline-flex items-center gap-3">
+                                                    <button onClick={() => viewUserDetails(u)} className="text-[#C0C0C0] hover:text-white hover:underline">{LL('عرض', 'View')}</button>
+                                                    <button onClick={() => openEditModal(u)} className="text-[#DBA935] hover:underline">{LL('تعديل', 'Edit')}</button>
+                                                    <button onClick={() => setPermUser(u)} className="text-blue-300 hover:underline">{LL('الصلاحيات', 'Permissions')}</button>
+                                                    {u.status === 'deleted'
+                                                        ? <button onClick={() => handleRestoreUser(u)} className="text-green-400 hover:underline">{LL('استعادة', 'Restore')}</button>
+                                                        : <button onClick={() => handleSoftDeleteUser(u)} className="text-red-400 hover:underline">{LL('حذف', 'Delete')}</button>}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Create / Edit modal */}
+            {modalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }} onClick={() => { setModalOpen(false); setEditingUser(null); }} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                    <form onSubmit={handleSubmit} className="bg-[#1a1a1e]/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gold/30 w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-5 border-b border-silver/20 sticky top-0 bg-[#1a1a1e]">
+                            <h2 className="text-lg font-alata text-gold">{editingUser ? LL('تعديل مستخدم', 'Edit User') : LL('مستخدم جديد', 'New User')}</h2>
+                            <button type="button" onClick={() => { setModalOpen(false); setEditingUser(null); }} className="text-silver p-1 hover:bg-silver/20 rounded">✕</button>
+                        </div>
+                        <div className="p-5 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div className="sm:col-span-2"><label className={lbl}>{LL('الاسم الكامل', 'Full name')} *</label><input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className={field} required /></div>
+                            <div><label className={lbl}>{LL('البريد', 'Email')} *</label><input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className={field} dir="ltr" required disabled={!!editingUser} /></div>
+                            <div><label className={lbl}>{LL('الهاتف', 'Phone')}</label><input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className={field} dir="ltr" /></div>
+                            {!editingUser && <>
+                                <div><label className={lbl}>{LL('كلمة المرور', 'Password')} *</label><input type="password" value={formData.password} onChange={handlePasswordChange} className={field} dir="ltr" /></div>
+                                <div><label className={lbl}>{LL('تأكيد كلمة المرور', 'Confirm password')} *</label><input type="password" value={formData.confirmPassword} onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })} className={field} dir="ltr" /></div>
+                                {formData.password && <div className="sm:col-span-2"><PasswordStrengthMeter strength={passwordStrength} /></div>}
+                            </>}
+                            <div><label className={lbl}>{LL('التصنيف', 'Type')}</label>
+                                <select value={formData.entity_type} onChange={e => setFormData({ ...formData, entity_type: e.target.value, role_key: USER_ROLES.find(r => r.type === e.target.value)?.value || 'employee' })} className={field}>
+                                    {USER_TYPES.map(ty => <option key={ty.value} value={ty.value}>{LL(TYPE_LABEL[ty.value].ar, TYPE_LABEL[ty.value].en)}</option>)}
+                                </select>
+                            </div>
+                            <div><label className={lbl}>{LL('الدور', 'Role')}</label>
+                                <select value={formData.role_key} onChange={e => setFormData({ ...formData, role_key: e.target.value })} className={field}>
+                                    {filteredRoles.map(r => <option key={r.value} value={r.value}>{LL(ROLE_LABEL[r.value]?.ar || r.value, ROLE_LABEL[r.value]?.en || r.value)}</option>)}
+                                </select>
+                            </div>
+                            <label className="flex items-center gap-2 text-silver text-sm cursor-pointer sm:col-span-2"><input type="checkbox" checked={formData.is_admin} onChange={e => setFormData({ ...formData, is_admin: e.target.checked })} className="accent-[#DBA935]" />{LL('صلاحيات إدارية (Admin)', 'Administrative access')}</label>
+                            {passwordError && <div className="sm:col-span-2 text-red-400 text-xs">{passwordError}</div>}
+                            <div className="sm:col-span-2 flex gap-3 pt-2">
+                                <button type="submit" className="flex-1 px-4 py-2 bg-gold text-darkwhite rounded-lg font-bold hover:bg-yellow-600 transition">{editingUser ? LL('حفظ', 'Save') : LL('إنشاء المستخدم', 'Create user')}</button>
+                                <button type="button" onClick={() => { setModalOpen(false); setEditingUser(null); }} className="flex-1 px-4 py-2 bg-silver/10 rounded-lg text-silver hover:bg-silver/20 transition">{LL('إلغاء', 'Cancel')}</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            )}
+
+            {/* View modal */}
+            {viewModalOpen && selectedUser && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }} onClick={() => setViewModalOpen(false)} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                    <div className="bg-[#1a1a1e]/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gold/30 w-full max-w-md" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-5 border-b border-silver/20">
+                            <h2 className="text-lg font-alata text-gold">{selectedUser.full_name}</h2>
+                            <button onClick={() => setViewModalOpen(false)} className="text-silver p-1 hover:bg-silver/20 rounded">✕</button>
+                        </div>
+                        <div className="p-5 space-y-2 text-sm text-white">
+                            <p><span className="text-silver/60">{LL('البريد', 'Email')}: </span><span dir="ltr">{selectedUser.email}</span></p>
+                            <p><span className="text-silver/60">{LL('الهاتف', 'Phone')}: </span>{selectedUser.phone || '—'}</p>
+                            <p><span className="text-silver/60">{LL('التصنيف', 'Type')}: </span>{LL(TYPE_LABEL[selectedUser.entity_type]?.ar || selectedUser.entity_type, TYPE_LABEL[selectedUser.entity_type]?.en || selectedUser.entity_type)}</p>
+                            <p><span className="text-silver/60">{LL('الدور', 'Role')}: </span>{LL(ROLE_LABEL[selectedUser.role_key]?.ar || selectedUser.role_key, ROLE_LABEL[selectedUser.role_key]?.en || selectedUser.role_key)}</p>
+                            <p><span className="text-silver/60">{LL('الحالة', 'Status')}: </span>{selectedUser.status}</p>
+                            <button onClick={() => { setViewModalOpen(false); setPermUser(selectedUser); }} className="mt-3 w-full px-4 py-2 bg-[#DBA935] text-[#3E3B3F] rounded-lg font-bold text-sm hover:bg-[#DBA935]/90">{LL('إدارة الصلاحيات', 'Manage permissions')}</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {permUser && (
+                <PermissionsModal userId={permUser.entity_id || permUser.id} userName={permUser.full_name || permUser.email} locale={locale} onClose={() => setPermUser(null)} />
+            )}
         </div>
     );
 }

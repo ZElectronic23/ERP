@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslations, useLocale } from 'next-intl';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   DOC_TYPE_LIST, DocType, getDocTypeLabel, formatCurrency,
@@ -38,9 +38,12 @@ export default function DocumentsListPage() {
   const isRTL = locale === 'ar';
   const label = (ar: string, en: string) => (isRTL ? ar : en);
 
+  const searchParams = useSearchParams();
+  const initialType = (searchParams?.get('type') as DocType | null) || 'all';
+
   const [docs, setDocs] = useState<DocRow[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterType, setFilterType] = useState<DocType | 'all'>('all');
+  const [filterType, setFilterType] = useState<DocType | 'all'>(initialType);
   const [filterStatus, setFilterStatus] = useState('all');
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);

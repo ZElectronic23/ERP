@@ -173,7 +173,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
   const label = (ar: string, en: string) => (isRTL ? ar : en);
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className="space-y-6">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="space-y-3">
       {/* ── Messages ── */}
       {error && (
         <div className="bg-red-500/20 border border-red-500/50 text-red-300 px-4 py-3 rounded-xl text-sm">
@@ -206,7 +206,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
       )}
 
       {/* ── Document Number & Date ── */}
-      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
         <h2 className="text-[#DBA935] font-bold text-lg mb-4">
           {documentId ? (doc.doc_number || '') : label('مستند جديد', 'New Document')}
           {' — '}
@@ -251,7 +251,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
       </div>
 
       {/* ── Client Selection ── */}
-      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
         <h3 className="text-[#DBA935] font-bold mb-3">{label('العميل', 'Client')}</h3>
         <CustomerSelector
           selectedClient={selectedClient}
@@ -264,7 +264,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
       </div>
 
       {/* ── Employee Assignment ── */}
-      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
         <h3 className="text-[#DBA935] font-bold mb-3">{label('الموظف المسؤول', 'Assigned Employee')}</h3>
         <select
           value={doc.assigned_employee || ''}
@@ -287,7 +287,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
 
       {/* ── Visit Fields (VR, REP) ── */}
       {config.hasVisitFields && (
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
           <h3 className="text-[#DBA935] font-bold mb-3">{label('بيانات الزيارة', 'Visit Details')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -335,7 +335,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
 
       {/* ── Equipment Status (REP, HO) ── */}
       {config.hasEquipmentFields && (
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
           <h3 className="text-[#DBA935] font-bold mb-3">{label('حالة المعدات', 'Equipment Status')}</h3>
           <select
             value={doc.equipment_status || 'working'}
@@ -353,7 +353,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
 
       {/* ── Handover Fields (HO) ── */}
       {config.hasHandoverFields && (
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
           <h3 className="text-[#DBA935] font-bold mb-3">{label('بيانات التسليم والاستلام', 'Handover Details')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
@@ -380,10 +380,16 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
 
       {/* ── Items Table (OF, IN, REP, HO) ── */}
       {config.hasItems && (
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
           <h3 className="text-[#DBA935] font-bold mb-3">{label('البنود', 'Items')}</h3>
 
-          <ItemSelector onAddItem={handleAddItem} locale={locale} />
+          {/* For technician reports, restrict items to the services catalog (+ a calculated "Other" line)
+              so the field engineer picks from real services instead of free-typing. */}
+          {config.employeeRole === 'Technician' ? (
+            <ItemSelector onAddItem={handleAddItem} locale={locale} defaultTab="service" allowedTabs={['service', 'custom']} />
+          ) : (
+            <ItemSelector onAddItem={handleAddItem} locale={locale} />
+          )}
 
           {items.length > 0 && (
             <div className="mt-4 overflow-x-auto">
@@ -517,7 +523,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
 
       {/* ── Payment (OF, IN, REP) ── */}
       {config.hasPayment && (
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
           <h3 className="text-[#DBA935] font-bold mb-3">{label('بيانات الدفع', 'Payment Details')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {config.key === 'OF' && (
@@ -586,12 +592,69 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
               />
             </div>
           </div>
+
+          {/* ── Reason when the invoice is not fully paid ── */}
+          {doc.payment_status && doc.payment_status !== 'paid' && (
+            <div className="mt-4">
+              <label className="block text-[#C0C0C0] text-sm mb-1">{label('سبب عدم السداد / ملاحظة التحصيل', 'Reason for non-payment / collection note')}</label>
+              <textarea
+                value={doc.unpaid_reason || ''}
+                onChange={(e) => updateField('unpaid_reason', e.target.value)}
+                rows={2}
+                className="w-full bg-black/30 border border-[#DBA935]/20 rounded-xl px-3 py-2 text-white focus:border-[#DBA935] focus:outline-none"
+                placeholder={label('مثال: متفق على السداد بعد التركيب / شيك مؤجل / العميل بيراجع', 'e.g. to pay after installation / post-dated cheque')}
+              />
+            </div>
+          )}
+
+          {/* ── Conditional payment details by method (reduces free typing) ── */}
+          {(doc.payment_method === 'instapay' || doc.payment_method === 'bank_transfer' || doc.payment_method === 'cheque') && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-3 gap-4 bg-black/20 rounded-xl p-3 border border-[#DBA935]/10">
+              {(doc.payment_method === 'bank_transfer' || doc.payment_method === 'cheque') && (
+                <div>
+                  <label className="block text-[#C0C0C0] text-sm mb-1">{label('البنك', 'Bank')}</label>
+                  <input
+                    type="text"
+                    value={doc.payment_bank || ''}
+                    onChange={(e) => updateField('payment_bank', e.target.value)}
+                    className="w-full bg-black/30 border border-[#DBA935]/20 rounded-xl px-3 py-2 text-white focus:border-[#DBA935] focus:outline-none"
+                    placeholder={label('اسم البنك', 'Bank name')}
+                  />
+                </div>
+              )}
+              <div>
+                <label className="block text-[#C0C0C0] text-sm mb-1">
+                  {doc.payment_method === 'cheque' ? label('رقم الشيك', 'Cheque No.')
+                    : doc.payment_method === 'instapay' ? label('مرجع انستاباي', 'Instapay Ref.')
+                    : label('مرجع التحويل', 'Transfer Ref.')}
+                </label>
+                <input
+                  type="text"
+                  value={doc.payment_ref || ''}
+                  onChange={(e) => updateField('payment_ref', e.target.value)}
+                  className="w-full bg-black/30 border border-[#DBA935]/20 rounded-xl px-3 py-2 text-white focus:border-[#DBA935] focus:outline-none"
+                  dir="ltr"
+                />
+              </div>
+              {doc.payment_method === 'cheque' && (
+                <div>
+                  <label className="block text-[#C0C0C0] text-sm mb-1">{label('تاريخ استحقاق الشيك', 'Cheque Due Date')}</label>
+                  <input
+                    type="date"
+                    value={doc.payment_cheque_date || ''}
+                    onChange={(e) => updateField('payment_cheque_date', e.target.value)}
+                    className="w-full bg-black/30 border border-[#DBA935]/20 rounded-xl px-3 py-2 text-white focus:border-[#DBA935] focus:outline-none"
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* ── Warranty (OF, IN, REP, HO) ── */}
       {config.hasWarranty && (
-        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+        <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
           <h3 className="text-[#DBA935] font-bold mb-3">{label('الضمان', 'Warranty')}</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -627,7 +690,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
       )}
 
       {/* ── Notes & Terms ── */}
-      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
         <h3 className="text-[#DBA935] font-bold mb-3">{label('ملاحظات وشروط', 'Notes & Terms')}</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -662,7 +725,7 @@ export default function DocumentEditor({ initialData, documentId }: Props) {
       </div>
 
       {/* ── Linked Documents ── */}
-      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-4 md:p-6">
+      <div className="bg-black/20 backdrop-blur-sm rounded-2xl border border-[#DBA935]/20 p-3 md:p-4">
         <h3 className="text-[#DBA935] font-bold mb-3">{label('ربط المستندات', 'Linked Documents')}</h3>
         <p className="text-[#C0C0C0] text-sm">
           {label(

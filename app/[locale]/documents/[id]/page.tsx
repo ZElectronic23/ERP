@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation';
 import { useLocale } from 'next-intl';
 import DocumentEditor from '@/components/documents/DocumentEditor';
 import DocumentPreview from '@/components/documents/DocumentPreview';
+import WarrantyCertificate from '@/components/documents/WarrantyCertificate';
+import ApprovalPanel from '@/components/ApprovalPanel';
 import { DocumentData, LineItem } from '@/lib/documents';
 
 export default function ViewDocumentPage() {
@@ -18,7 +20,7 @@ export default function ViewDocumentPage() {
   const [employee, setEmployee] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<'edit' | 'preview'>('edit');
+  const [tab, setTab] = useState<'edit' | 'preview' | 'warranty'>('edit');
 
   useEffect(() => {
     if (!documentId) return;
@@ -50,6 +52,10 @@ export default function ViewDocumentPage() {
           offer_status: d.offer_status,
           payment_status: d.payment_status,
           payment_method: d.payment_method,
+          payment_ref: d.payment_ref ?? null,
+          payment_bank: d.payment_bank ?? null,
+          payment_cheque_date: d.payment_cheque_date ?? null,
+          unpaid_reason: d.unpaid_reason ?? null,
           due_date: d.due_date,
           paid_amount: d.paid_amount || 0,
           visit_date: d.visit_date,
@@ -157,11 +163,31 @@ export default function ViewDocumentPage() {
             >
               {isRTL ? '👁️ معاينة' : '👁️ Preview'}
             </button>
+            {doc.doc_type === 'IN' && (
+              <button
+                onClick={() => setTab('warranty')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition ${
+                  tab === 'warranty'
+                    ? 'bg-[#DBA935] text-[#3E3B3F]'
+                    : 'text-[#C0C0C0] hover:bg-[#DBA935]/10'
+                }`}
+              >
+                {isRTL ? '🛡️ شهادة الضمان' : '🛡️ Warranty'}
+              </button>
+            )}
           </div>
         </div>
 
         {tab === 'edit' ? (
           <DocumentEditor initialData={doc} documentId={documentId} />
+        ) : tab === 'warranty' ? (
+          <WarrantyCertificate
+            invoiceNo={doc.doc_number || ''}
+            customerName={client?.name || ''}
+            issueDate={doc.doc_date}
+            items={doc.items.map((it) => ({ name: it.itemName, qty: it.quantity, unit: it.itemUnit, type: `${it.category} ${it.itemType}` }))}
+            locale={locale}
+          />
         ) : (
           <DocumentPreview
             document={doc}
@@ -170,6 +196,11 @@ export default function ViewDocumentPage() {
             locale={locale}
           />
         )}
+
+        {/* Approval cycle for this document (invoice / price offer / report) */}
+        <div className="mt-6">
+          <ApprovalPanel entityType="document" entityId={documentId} locale={locale} />
+        </div>
       </div>
     </div>
   );

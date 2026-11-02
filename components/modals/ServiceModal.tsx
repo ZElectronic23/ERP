@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { calculatePricing } from '@/lib/documents'
+import MarketIntelPanel from '@/components/market/MarketIntelPanel'
 
 interface ServiceModalProps {
     isOpen: boolean
@@ -17,6 +19,22 @@ export default function ServiceModal({ isOpen, onClose, onSuccess, service, lang
 
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+    const [autoPrice, setAutoPrice] = useState(true)
+    const [marketAvg, setMarketAvg] = useState<string>(service?.market_avg_price ?? '')
+    const autoSellFromCost = (cost: string | number) => {
+        const c = parseFloat(String(cost))
+        if (!c || c <= 0) return ''
+        return String(calculatePricing({ directCost: c }).targetPrice)
+    }
+    const openMarket = (site: 'amazon' | 'egyprices' | 'qarenly' | 'upwork' | 'fiverr') => {
+        const q = encodeURIComponent(formData.name || '')
+        const urls = {
+            amazon: `https://www.amazon.eg/s?k=${q}`, egyprices: `https://egyprices.com/en/search?q=${q}`, qarenly: `https://www.qarenly.com/search?q=${q}`,
+            // supplementary sources for freelance / technical labor rates
+            upwork: `https://www.upwork.com/search/profiles/?q=${q}`, fiverr: `https://www.fiverr.com/search/gigs?query=${q}`,
+        }
+        window.open(urls[site], '_blank', 'noopener')
+    }
     const [categorySuggestions, setCategorySuggestions] = useState<string[]>([])
     const [nameSuggestions, setNameSuggestions] = useState<any[]>([])
     const [formData, setFormData] = useState({
@@ -51,6 +69,7 @@ export default function ServiceModal({ isOpen, onClose, onSuccess, service, lang
                 sell_price: '', cost_price: '', estimated_hours: '', assigned_department: '', notes: '',
             })
         }
+        setMarketAvg(service?.market_avg_price ?? '')
         setError('')
     }, [service, isOpen])
 
@@ -84,16 +103,24 @@ export default function ServiceModal({ isOpen, onClose, onSuccess, service, lang
         setLoading(true)
         setError('')
         try {
+            const costNum = formData.cost_price !== '' ? parseFloat(String(formData.cost_price)) : 0
+            const pricing = costNum > 0 ? calculatePricing({ directCost: costNum }) : null
             const payload: any = {
                 service_id: formData.service_id.trim(),
                 name: formData.name.trim(),
                 category: formData.category || null,
                 unit: formData.unit || null,
                 sell_price: formData.sell_price !== '' ? parseFloat(String(formData.sell_price)) : null,
-                cost_price: formData.cost_price !== '' ? parseFloat(String(formData.cost_price)) : null,
+                cost_price: costNum || null,
                 estimated_hours: formData.estimated_hours !== '' ? parseFloat(String(formData.estimated_hours)) : null,
                 assigned_department: formData.assigned_department || null,
                 notes: formData.notes || null,
+                direct_cost: costNum || null,
+                loaded_cost: pricing?.loadedCost ?? null,
+                floor_price: pricing?.floorPrice ?? null,
+                target_price: pricing?.targetPrice ?? null,
+                max_discount_pct: pricing?.maxDiscountPct ?? null,
+                market_avg_price: marketAvg !== '' ? parseFloat(marketAvg) : null,
             }
 
             let err = null
@@ -229,15 +256,27 @@ export default function ServiceModal({ isOpen, onClose, onSuccess, service, lang
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-silver mb-2">{L('سعر البيع', 'Sell Price')}</label>
-                            <input type="number" step="0.01" value={formData.sell_price}
+                            <label className="flex items-center justify-between text-silver mb-2">
+                                <span>{L('سعر البيع', 'Sell Price')}</span>
+                                <label className="text-xs text-silver/70 flex items-center gap-1 cursor-pointer">
+                                    <input type="checkbox" checked={autoPrice} onChange={(e) => {
+                                        const on = e.target.checked; setAutoPrice(on);
+                                        if (on) setFormData(f => ({ ...f, sell_price: autoSellFromCost(f.cost_price) }));
+                                    }} />
+                                    {L('تلقائي من التكلفة', 'Auto from cost')}
+                                </label>
+                            </label>
+                            <input type="number" step="0.01" value={formData.sell_price} readOnly={autoPrice}
                                 onChange={(e) => setFormData({ ...formData, sell_price: e.target.value })}
-                                className={field} placeholder="0.00" />
+                                className={`${field} ${autoPrice ? 'opacity-80 cursor-not-allowed' : ''}`} placeholder="0.00" />
                         </div>
                         <div>
                             <label className="block text-silver mb-2">{L('التكلفة', 'Cost')}</label>
                             <input type="number" step="0.01" value={formData.cost_price}
-                                onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
+                                onChange={(e) => {
+                                    const cost = e.target.value;
+                                    setFormData(f => ({ ...f, cost_price: cost, ...(autoPrice ? { sell_price: autoSellFromCost(cost) } : {}) }));
+                                }}
                                 className={field} placeholder="0.00" />
                         </div>
                     </div>
@@ -256,6 +295,23 @@ export default function ServiceModal({ isOpen, onClose, onSuccess, service, lang
                                 className={field} placeholder={L('القسم المسؤول', 'Responsible dept.')} />
                         </div>
                     </div>
+
+                    <div>
+                        <label className="block text-silver mb-2">{L('متوسط سعر السوق', 'Market avg price')}</label>
+                        <div className="flex items-center gap-2">
+                            <input type="number" step="0.01" value={marketAvg} onChange={(e) => setMarketAvg(e.target.value)} className={`${field} flex-1`} placeholder="0.00" />
+                            <button type="button" onClick={() => openMarket('amazon')} className="px-2 py-2 rounded-lg bg-gold/15 text-gold text-xs hover:bg-gold/30">Amazon</button>
+                            <button type="button" onClick={() => openMarket('egyprices')} className="px-2 py-2 rounded-lg bg-gold/15 text-gold text-xs hover:bg-gold/30">EgyPrices</button>
+                            <button type="button" onClick={() => openMarket('qarenly')} className="px-2 py-2 rounded-lg bg-gold/15 text-gold text-xs hover:bg-gold/30">Qarenly</button>
+                            <button type="button" onClick={() => openMarket('upwork')} title={L('أسعار الفريلانسر', 'Freelance rates')} className="px-2 py-2 rounded-lg bg-green-500/15 text-green-300 text-xs hover:bg-green-500/30">Upwork</button>
+                            <button type="button" onClick={() => openMarket('fiverr')} title={L('أسعار الفريلانسر', 'Freelance rates')} className="px-2 py-2 rounded-lg bg-green-500/15 text-green-300 text-xs hover:bg-green-500/30">Fiverr</button>
+                        </div>
+                    </div>
+
+                    {/* ذكاء السوق لكل صنف (متاح عند التعديل حيث يوجد كود خدمة) */}
+                    {service?.service_id && (
+                        <MarketIntelPanel itemType="service" itemId={service.service_id} language={language} />
+                    )}
 
                     <div>
                         <label className="block text-silver mb-2">{L('ملاحظات', 'Notes')}</label>

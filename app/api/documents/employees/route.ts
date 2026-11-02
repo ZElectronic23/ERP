@@ -19,11 +19,12 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from('employees')
-      .select('id, name, role, department, phone, email')
-      .order('name');
+      .select('id:EmployeeID, name:Name, role:Position, department:Department, phone:PhoneNumber, email:WorkEmail')
+      .is('deleted_at', null)
+      .order('Name');
 
     if (role && role !== 'any') {
-      query = query.or(`role.ilike.%${role}%,department.ilike.%${role}%`);
+      query = query.or(`Position.ilike.%${role}%,Department.ilike.%${role}%`);
     }
 
     const { data, error } = await query;

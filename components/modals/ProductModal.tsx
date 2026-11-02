@@ -6,6 +6,8 @@ import { useTranslations } from 'next-intl'
 import Image from 'next/image'
 import { v4 as uuidv4 } from 'uuid'
 import imageCompression from 'browser-image-compression'
+import { calculatePricing } from '@/lib/documents'
+import MarketIntelPanel from '@/components/market/MarketIntelPanel'
 
 interface ProductModalProps {
     isOpen: boolean
@@ -34,6 +36,24 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
     const [imagePreview, setImagePreview] = useState<string | null>(product?.image || null)
     const [uploading, setUploading] = useState(false)
     const [error, setError] = useState('')
+    const [autoPrice, setAutoPrice] = useState(true) // سعر البيع تلقائي من التكلفة
+    const [marketAvg, setMarketAvg] = useState<string>(product?.market_avg_price ?? '')
+    const openMarket = (site: 'amazon' | 'egyprices' | 'qarenly') => {
+        const q = encodeURIComponent(formData.name || '')
+        const urls = {
+            amazon: `https://www.amazon.eg/s?k=${q}`,
+            egyprices: `https://egyprices.com/en/search?q=${q}`,
+            qarenly: `https://www.qarenly.com/search?q=${q}`,
+        }
+        window.open(urls[site], '_blank', 'noopener')
+    }
+
+    // يحسب سعر البيع تلقائياً من التكلفة حسب محرك التسعير
+    const autoSellFromCost = (cost: string) => {
+        const c = parseFloat(cost)
+        if (!c || c <= 0) return ''
+        return String(calculatePricing({ directCost: c }).targetPrice)
+    }
 
     // جلب آخر كود منتج لإنشاء كود جديد تلقائي (فقط للإضافة)
     useEffect(() => {
@@ -42,13 +62,13 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                 const { data } = await supabase
                     .from('products')
                     .select('product_id')
-                    .order('product_id', { ascending: false })
-                    .limit(1)
+                    .like('product_id', 'P%')
 
                 if (data && data.length > 0) {
-                    const lastId = data[0].product_id
-                    const num = parseInt(lastId.replace('P', '')) + 1
-                    const newId = `P${num.toString().padStart(3, '0')}`
+                    // نحسب أكبر رقم بين أكواد P### فقط (تجاهل الأكواد الأخرى مثل STR-###)
+                    let max = 0
+                    data.forEach((r: any) => { const m = String(r.product_id).match(/^P(\d+)$/); if (m) max = Math.max(max, parseInt(m[1])) })
+                    const newId = `P${(max + 1).toString().padStart(3, '0')}`
                     setFormData({
                         product_id: newId,
                         name: '',
@@ -87,6 +107,7 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                 unit: product.unit || ''
             })
             setImagePreview(product.image || null)
+            setMarketAvg(product.market_avg_price ?? '')
         }
     }, [product])
 
@@ -178,6 +199,8 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                 if (!imageUrl) throw new Error(t('imageUploadFailed') || 'فشل رفع الصورة')
             }
 
+            const costNum = formData.cost_price ? parseFloat(formData.cost_price) : 0
+            const pricing = costNum > 0 ? calculatePricing({ directCost: costNum }) : null
             const productData = {
                 product_id: formData.product_id,
                 name: formData.name,
@@ -187,6 +210,13 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                 stock_quantity: parseInt(formData.stock_quantity) || 0,
                 unit: formData.unit || null,
                 image: imageUrl,
+                // تسعير محسوب تلقائياً من التكلفة
+                direct_cost: costNum || null,
+                loaded_cost: pricing?.loadedCost ?? null,
+                floor_price: pricing?.floorPrice ?? null,
+                target_price: pricing?.targetPrice ?? null,
+                max_discount_pct: pricing?.maxDiscountPct ?? null,
+                market_avg_price: marketAvg !== '' ? parseFloat(marketAvg) : null,
             }
 
             let error = null
@@ -362,13 +392,23 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
 
                     <div className="grid grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-silver mb-2">{t('sellPrice')}</label>
+                            <label className="flex items-center justify-between text-silver mb-2">
+                                <span>{t('sellPrice')}</span>
+                                <label className="text-xs text-silver/70 flex items-center gap-1 cursor-pointer">
+                                    <input type="checkbox" checked={autoPrice} onChange={(e) => {
+                                        const on = e.target.checked; setAutoPrice(on);
+                                        if (on) setFormData(f => ({ ...f, sell_price: autoSellFromCost(f.cost_price) }));
+                                    }} />
+                                    {language === 'ar' ? 'تلقائي من التكلفة' : 'Auto from cost'}
+                                </label>
+                            </label>
                             <input
                                 type="number"
                                 step="0.01"
                                 value={formData.sell_price}
+                                readOnly={autoPrice}
                                 onChange={(e) => setFormData({ ...formData, sell_price: e.target.value })}
-                                className="w-full px-4 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-silver placeholder-silver/50 focus:outline-none focus:border-gold transition-all"
+                                className={`w-full px-4 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-silver placeholder-silver/50 focus:outline-none focus:border-gold transition-all ${autoPrice ? 'opacity-80 cursor-not-allowed' : ''}`}
                                 placeholder="0.00"
                             />
                         </div>
@@ -378,7 +418,10 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                                 type="number"
                                 step="0.01"
                                 value={formData.cost_price}
-                                onChange={(e) => setFormData({ ...formData, cost_price: e.target.value })}
+                                onChange={(e) => {
+                                    const cost = e.target.value;
+                                    setFormData(f => ({ ...f, cost_price: cost, ...(autoPrice ? { sell_price: autoSellFromCost(cost) } : {}) }));
+                                }}
                                 className="w-full px-4 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-silver placeholder-silver/50 focus:outline-none focus:border-gold transition-all"
                                 placeholder="0.00"
                             />
@@ -394,6 +437,24 @@ export default function ProductModal({ isOpen, onClose, onSuccess, product, lang
                             className="w-full px-4 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-silver placeholder-silver/50 focus:outline-none focus:border-gold transition-all"
                         />
                     </div>
+
+                    {/* متوسط سعر السوق + بحث أونلاين */}
+                    <div>
+                        <label className="block text-silver mb-2">{language === 'ar' ? 'متوسط سعر السوق' : 'Market avg price'}</label>
+                        <div className="flex items-center gap-2">
+                            <input type="number" step="0.01" value={marketAvg} onChange={(e) => setMarketAvg(e.target.value)}
+                                className="flex-1 px-4 py-2 bg-[#0a0a0c] border border-silver/30 rounded-lg text-silver placeholder-silver/50 focus:outline-none focus:border-gold transition-all" placeholder="0.00" />
+                            <button type="button" onClick={() => openMarket('amazon')} title="Amazon.eg" className="px-2 py-2 rounded-lg bg-gold/15 text-gold text-xs hover:bg-gold/30 whitespace-nowrap">Amazon</button>
+                            <button type="button" onClick={() => openMarket('egyprices')} title="EgyPrices" className="px-2 py-2 rounded-lg bg-gold/15 text-gold text-xs hover:bg-gold/30 whitespace-nowrap">EgyPrices</button>
+                            <button type="button" onClick={() => openMarket('qarenly')} title="Qarenly" className="px-2 py-2 rounded-lg bg-gold/15 text-gold text-xs hover:bg-gold/30 whitespace-nowrap">Qarenly</button>
+                        </div>
+                        <p className="text-[10px] text-silver/50 mt-1">{language === 'ar' ? 'اضغط للبحث عن المنتج في السوق ثم أدخل المتوسط' : 'Search the market then enter the average'}</p>
+                    </div>
+
+                    {/* ذكاء السوق لكل صنف (متاح عند التعديل حيث يوجد كود منتج) */}
+                    {product?.product_id && (
+                        <MarketIntelPanel itemType="product" itemId={product.product_id} language={language} />
+                    )}
 
                     {error && <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">{error}</div>}
 
