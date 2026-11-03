@@ -205,10 +205,16 @@ export default function UserMenu() {
                                 const isClient = rk === 'client' || rk === 'regular_client' || currentUser?.entity_type === 'client';
                                 if (isClient) return null; // clients use their own portal, not the staff calendar
                                 return (
+                                    <>
                                     <button onClick={() => goTo('calendar')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('calendar') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
                                         <span className={`w-1.5 h-1.5 rounded-full ${isActive('calendar') ? 'bg-gold' : 'bg-silver/40'}`} />
                                         {language === 'ar' ? 'تقويمي' : 'My calendar'}
                                     </button>
+                                    <button onClick={() => goTo('meetings')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('meetings') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('meetings') ? 'bg-gold' : 'bg-silver/40'}`} />
+                                        {language === 'ar' ? 'الاجتماعات' : 'Meetings'}
+                                    </button>
+                                    </>
                                 );
                             })()}
                             {visibleGroups.map(g => (

@@ -51,16 +51,26 @@ export async function GET() {
     const emp = await myEmployee(authed.profile.email);
     if (!emp) return NextResponse.json({ error: 'no_employee', message: 'لا يوجد ملف موظف مرتبط بحسابك.' }, { status: 404 });
 
-    const [{ data: events }, { data: tasks }, external, { data: subs }] = await Promise.all([
+    const [{ data: events }, { data: tasks }, external, { data: subs }, { data: myParts }] = await Promise.all([
         supabaseAdmin.from('calendar_events').select('*').eq('owner_employee_id', emp.EmployeeID).order('start_at'),
         supabaseAdmin.from('tasks').select('TaskID, TaskName, StartDate, EndDate, ProjectID, Status').eq('EmployeeID', emp.EmployeeID).is('deleted_at', null),
         externalEvents(emp.EmployeeID),
         supabaseAdmin.from('calendar_subscriptions').select('id, provider, ics_url').eq('owner_employee_id', emp.EmployeeID).eq('active', true),
+        supabaseAdmin.from('meeting_participants').select('meeting_id').eq('employee_id', emp.EmployeeID),
     ]);
+
+    // meetings the employee organizes or is invited to (own calendar only — privacy preserved)
+    const meetingIds = Array.from(new Set((myParts || []).map((p: any) => p.meeting_id)));
+    let meetings: any[] = [];
+    if (meetingIds.length) {
+        const { data } = await supabaseAdmin.from('meetings').select('id, title, start_at, end_at, location, project_code, status').in('id', meetingIds).is('deleted_at', null).neq('status', 'cancelled');
+        meetings = data || [];
+    }
 
     const merged = [
         ...(events || []).map((e: any) => ({ id: e.id, title: e.title, type: e.type, start: e.start_at, end: e.end_at, location: e.location, project: e.project_code, source: 'event' })),
         ...(tasks || []).filter((t: any) => t.StartDate || t.EndDate).map((t: any) => ({ id: t.TaskID, title: t.TaskName, type: 'task', start: t.StartDate, end: t.EndDate, project: t.ProjectID, status: t.Status, source: 'task' })),
+        ...meetings.map((m: any) => ({ id: m.id, title: m.title, type: 'meeting', start: m.start_at, end: m.end_at, location: m.location, project: m.project_code, status: m.status, source: 'meeting' })),
         ...external,
     ];
     return NextResponse.json({ employee: { id: emp.EmployeeID, name: emp.Name }, events: merged, subscriptions: subs || [] });
