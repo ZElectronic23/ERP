@@ -222,6 +222,10 @@ export default function UserMenu() {
                                         <span className={`w-1.5 h-1.5 rounded-full ${isActive('competency') ? 'bg-gold' : 'bg-silver/40'}`} />
                                         {language === 'ar' ? 'الكفاءات والمهارات' : 'Competency & skills'}
                                     </button>
+                                    <button onClick={() => goTo('roadmap')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('roadmap') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('roadmap') ? 'bg-gold' : 'bg-silver/40'}`} />
+                                        {language === 'ar' ? 'مسار التطوير' : 'Development roadmap'}
+                                    </button>
                                     </>
                                 );
                             })()}
