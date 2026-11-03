@@ -338,8 +338,11 @@ export default function CoursePage() {
                                             {contentTx && <p className="text-silver/40 text-[10px] mt-1">{L('ترجمة آلية (غير رسمية).', 'Machine translation (unofficial).')}</p>}
                                         </div>
                                     )}
-                                    {lesson.kind === 'quiz' && (lesson.quiz || []).length > 0 && (
-                                        <div className="space-y-3">
+                                    {/* Per-lesson quiz — shown for ANY lesson that has questions (e.g. a short
+                                        test after each video). Passing (≥60%) marks the lesson complete. */}
+                                    {(lesson.quiz || []).length > 0 && (
+                                        <div className="space-y-3 mt-2 border-t border-white/10 pt-3">
+                                            <div className="text-[#DBA935] text-sm font-bold">📝 {L('اختبار الدرس', 'Lesson quiz')}</div>
                                             {quizResult ? (
                                                 <div className={`p-3 rounded-xl ${quizResult.pct >= 60 ? 'bg-green-500/15 text-green-300' : 'bg-red-500/15 text-red-300'}`}>{quizResult.correct}/{quizResult.total} · {quizResult.pct}% {quizResult.pct >= 60 ? `— ✓ ${L('تم', 'done')}` : `— ${L('أعد', 'retry')}`}<button onClick={() => { setQuizResult(null); setQuizAnswers({}); }} className="ms-3 text-xs underline">{L('إعادة', 'Retry')}</button></div>
                                             ) : (<>
@@ -355,8 +358,9 @@ export default function CoursePage() {
                                             </>)}
                                         </div>
                                     )}
-                                    {lesson.kind !== 'quiz' && e && !done.includes(lesson.id) && <button onClick={() => completeLesson(lesson.id)} className="px-4 py-2 rounded-xl bg-[#DBA935] text-[#3E3B3F] font-bold text-sm">{L('إنهاء الدرس', 'Mark as done')}</button>}
-                                    {lesson.kind !== 'quiz' && done.includes(lesson.id) && <span className="text-green-300 text-sm">✓ {L('أنهيت هذا الدرس', 'Completed')}</span>}
+                                    {/* lessons WITHOUT a quiz are completed with a button */}
+                                    {(lesson.quiz || []).length === 0 && e && !done.includes(lesson.id) && <button onClick={() => completeLesson(lesson.id)} className="px-4 py-2 rounded-xl bg-[#DBA935] text-[#3E3B3F] font-bold text-sm">{L('إنهاء الدرس', 'Mark as done')}</button>}
+                                    {done.includes(lesson.id) && <span className="text-green-300 text-sm">✓ {L('أنهيت هذا الدرس', 'Completed')}</span>}
                                 </div>
                             )}
                     </div>
@@ -395,9 +399,9 @@ export default function CoursePage() {
                             {lessonEdit.kind === 'video' && <div><label className={lbl}>{L('رابط الفيديو (YouTube/Vimeo/مباشر)', 'Video URL (YouTube/Vimeo/direct)')}</label><input dir="ltr" value={lessonEdit.video_url || ''} onChange={e => setLessonEdit({ ...lessonEdit, video_url: e.target.value })} className={field} /></div>}
                             {lessonEdit.kind === 'video' && <div><label className={lbl}>{L('الترجمة النصية (VTT/SRT — تُترجَم آلياً عند الطلب)', 'Captions (VTT/SRT — auto-translated on demand)')}</label><textarea dir="ltr" rows={4} value={lessonEdit.subtitles || ''} onChange={e => setLessonEdit({ ...lessonEdit, subtitles: e.target.value })} placeholder={'WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n...'} className={field} /></div>}
                             <div><label className={lbl}>{L('المحتوى / الشرح', 'Content / notes')}</label><textarea rows={4} value={lessonEdit.content || ''} onChange={e => setLessonEdit({ ...lessonEdit, content: e.target.value })} className={field} /></div>
-                            {lessonEdit.kind === 'quiz' && (
+                            {(
                                 <div>
-                                    <label className={lbl}>{L('أسئلة الاختبار', 'Quiz questions')}</label>
+                                    <label className={lbl}>{lessonEdit.kind === 'quiz' ? L('أسئلة الاختبار', 'Quiz questions') : L('اختبار بعد الدرس (اختياري)', 'Quiz after this lesson (optional)')}</label>
                                     {(lessonEdit.quiz || []).map((q: any, i: number) => (
                                         <div key={i} className="bg-black/20 rounded-lg p-2 mb-2">
                                             <input value={q.q || ''} onChange={e => setLessonEdit({ ...lessonEdit, quiz: lessonEdit.quiz.map((x: any, j: number) => j === i ? { ...x, q: e.target.value } : x) })} placeholder={L('السؤال', 'Question')} className={`${field} mb-1`} />
