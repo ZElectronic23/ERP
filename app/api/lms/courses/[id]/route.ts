@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireUser } from '@/lib/auth/requireAuth';
 import { canManageLms } from '../route';
+import { parseYouTube, fetchPlaylistVideos, fetchVideoTitle } from '@/lib/youtube';
 
 async function myEmployee(email: string | null) {
     if (!email) return null;
@@ -54,6 +55,43 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     if (b.action === 'delete_lesson') {
         await supabaseAdmin.from('lessons').delete().eq('id', String(b.lesson_id || '')).eq('course_id', id);
         return NextResponse.json({ ok: true });
+    }
+
+    // White-label import: pull a public YouTube playlist (or single video) FROM THE SOURCE and
+    // create our own video lessons. We store only the video reference + title — it streams from
+    // YouTube inside our player, nothing is re-hosted.
+    if (b.action === 'import_source') {
+        const src = String(b.source_url || '').trim();
+        const parsed = parseYouTube(src);
+        if (parsed.type === 'unknown' || !parsed.id) return NextResponse.json({ error: 'bad_source', message: 'ضع رابط قائمة تشغيل أو فيديو يوتيوب صالح.' }, { status: 400 });
+
+        let videos: { videoId: string; title: string }[] = [];
+        let srcTitle = '';
+        try {
+            if (parsed.type === 'playlist' || parsed.type === 'channel') {
+                const r = await fetchPlaylistVideos(parsed.id);
+                videos = r.videos; srcTitle = r.title;
+            } else {
+                const t = await fetchVideoTitle(parsed.id);
+                videos = [{ videoId: parsed.id, title: t || 'Video' }];
+            }
+        } catch {
+            return NextResponse.json({ error: 'fetch_failed', message: 'تعذّر جلب المحتوى من المصدر، حاول لاحقاً.' }, { status: 502 });
+        }
+        if (!videos.length) return NextResponse.json({ error: 'empty', message: 'لم نجد فيديوهات في هذا المصدر (قد تكون القائمة خاصة).' }, { status: 422 });
+
+        if (b.replace) await supabaseAdmin.from('lessons').delete().eq('course_id', id);
+        const { data: existing } = await supabaseAdmin.from('lessons').select('sort_order').eq('course_id', id).order('sort_order', { ascending: false }).limit(1);
+        let order = (existing?.[0]?.sort_order ?? -1) + 1;
+        const rows = videos.map(v => ({
+            course_id: id, title_ar: v.title, title_en: v.title, kind: 'video',
+            video_url: `https://www.youtube.com/watch?v=${v.videoId}`, content: null, quiz: [], sort_order: order++,
+        }));
+        const { error } = await supabaseAdmin.from('lessons').insert(rows);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        // remember the source on the course (so it can be re-synced / shown as origin)
+        await supabaseAdmin.from('courses').update({ external_url: src, updated_at: new Date().toISOString() }).eq('id', id);
+        return NextResponse.json({ ok: true, imported: rows.length, source_title: srcTitle });
     }
 
     // edit course fields

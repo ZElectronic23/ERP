@@ -50,6 +50,11 @@ export default function CoursePage() {
     const [mirrorLang, setMirrorLang] = useState('');                  // '' = original
     const [mirrorTx, setMirrorTx] = useState<{ title?: string; description?: string; blocks?: string[] } | null>(null);
     const [mirrorTxBusy, setMirrorTxBusy] = useState(false);
+    const [importOpen, setImportOpen] = useState(false);               // white-label source import
+    const [importUrl, setImportUrl] = useState('');
+    const [importReplace, setImportReplace] = useState(false);
+    const [importBusy, setImportBusy] = useState(false);
+    const [importMsg, setImportMsg] = useState('');
     const [contentTx, setContentTx] = useState<string | null>(null);   // translated reading text
     const [capLang, setCapLang] = useState('');                          // '' = original
     const [caps, setCaps] = useState<any[] | null>(null);
@@ -104,6 +109,15 @@ export default function CoursePage() {
         setLessonEdit(null); load();
     };
     const delLesson = async (lid: string) => { if (!confirm(L('حذف الدرس؟', 'Delete lesson?'))) return; await fetch(`/api/lms/courses/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_lesson', lesson_id: lid }) }); load(); };
+    const runImport = async () => {
+        if (!importUrl.trim()) return;
+        setImportBusy(true); setImportMsg('');
+        const res = await fetch(`/api/lms/courses/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'import_source', source_url: importUrl.trim(), replace: importReplace }) });
+        const j = await res.json(); setImportBusy(false);
+        if (!res.ok) { setImportMsg(j.message || j.error || L('فشل الاستيراد.', 'Import failed.')); return; }
+        setImportMsg(L(`تم استيراد ${j.imported} فيديو من المصدر.`, `Imported ${j.imported} videos from the source.`));
+        setImportUrl(''); load();
+    };
     const publish = async () => { await fetch(`/api/lms/courses/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: c.status === 'published' ? 'draft' : 'published' }) }); load(); };
 
     const resetLessonView = () => { setQuizAnswers({}); setQuizResult(null); setAssessMode(false); setContentTx(null); setCapLang(''); setCaps(null); };
@@ -188,6 +202,7 @@ export default function CoursePage() {
                         {canManage && <>
                             <button onClick={publish} className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20">{c.status === 'published' ? L('إلغاء النشر', 'Unpublish') : L('نشر', 'Publish')}</button>
                             <button onClick={() => setLessonEdit({ title_ar: '', kind: 'text', sort_order: lessons.length, quiz: [] })} className="px-3 py-1.5 rounded-lg bg-[#DBA935]/20 text-[#DBA935] border border-[#DBA935]/40 text-xs">+ {L('درس', 'Lesson')}</button>
+                            <button onClick={() => { setImportOpen(true); setImportMsg(''); }} className="px-3 py-1.5 rounded-lg bg-green-600/25 text-green-200 border border-green-500/40 text-xs">⬇ {L('استيراد من المصدر', 'Import from source')}</button>
                         </>}
                     </div>
                     {/* Provider content is MIRRORED (fetched server-side, re-rendered here) so it
@@ -347,6 +362,23 @@ export default function CoursePage() {
                     </div>
                 </div>
             </div>
+
+            {/* white-label source import (managers) */}
+            {importOpen && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)' }} onClick={() => setImportOpen(false)} dir={isAr ? 'rtl' : 'ltr'}>
+                    <div className="bg-[#1a1a1e]/95 rounded-2xl shadow-2xl border border-[#DBA935]/30 w-full max-w-lg" onClick={ev => ev.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-silver/20"><h2 className="text-lg text-[#DBA935]">⬇ {L('استيراد كورس من المصدر', 'Import course from source')}</h2><button onClick={() => setImportOpen(false)} className="text-silver p-1 hover:bg-silver/20 rounded">✕</button></div>
+                        <div className="p-4 space-y-3">
+                            <p className="text-[#C0C0C0] text-xs">{L('الصق رابط قائمة تشغيل أو فيديو على يوتيوب. يتحوّل كل فيديو إلى درس داخل الكورس — يُعرض بهويتك ويُبثّ من المصدر (بدون تخزين أو نسخ).', 'Paste a YouTube playlist or video link. Each video becomes a lesson inside the course — shown under your brand and streamed from the source (nothing stored or copied).')}</p>
+                            <input dir="ltr" value={importUrl} onChange={e => setImportUrl(e.target.value)} placeholder="https://www.youtube.com/playlist?list=..." className={field} />
+                            <label className="flex items-center gap-2 text-xs text-white"><input type="checkbox" checked={importReplace} onChange={e => setImportReplace(e.target.checked)} className="accent-[#DBA935] w-4 h-4" />{L('استبدال الدروس الحالية بدل الإضافة', 'Replace current lessons instead of appending')}</label>
+                            {importMsg && <p className="text-xs text-[#DBA935]">{importMsg}</p>}
+                            <p className="text-silver/40 text-[10px]">{L('الفيديوهات الخاصة أو المحظورة من التضمين لا يمكن جلبها.', 'Private or embedding-restricted videos cannot be imported.')}</p>
+                        </div>
+                        <div className="flex justify-end gap-2 p-4 border-t border-silver/20"><button onClick={() => setImportOpen(false)} className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm">{L('إغلاق', 'Close')}</button><button disabled={importBusy || !importUrl.trim()} onClick={runImport} className="px-4 py-2 rounded-lg bg-[#DBA935] text-[#3E3B3F] font-bold text-sm disabled:opacity-40">{importBusy ? L('جارٍ الاستيراد...', 'Importing...') : L('استيراد', 'Import')}</button></div>
+                    </div>
+                </div>
+            )}
 
             {/* lesson editor (managers) */}
             {lessonEdit && (
