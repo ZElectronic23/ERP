@@ -11,6 +11,15 @@ async function myEmployee(email: string | null) {
     return data;
 }
 
+// Accounts without an employee row (owner/admin/…) still get a stable calendar identity, so
+// the calendar works for everyone — they simply see their meetings and any events they create.
+async function myIdentity(authed: { user: { id: string }; profile: { email: string } }) {
+    const emp = await myEmployee(authed.profile.email);
+    if (emp) return { id: emp.EmployeeID, name: emp.Name as string };
+    const { data: u } = await supabaseAdmin.from('users').select('full_name, email').eq('entity_id', authed.user.id).maybeSingle();
+    return { id: `user:${authed.user.id}`, name: (u?.full_name || u?.email || authed.profile.email || 'مستخدم') as string };
+}
+
 // Minimal iCal (.ics) parser → events {title,start,end}. Handles DATE and DATE-TIME DTSTART/DTEND.
 function parseICS(text: string): { title: string; start: string; end: string | null }[] {
     const out: { title: string; start: string; end: string | null }[] = [];
@@ -50,15 +59,14 @@ async function externalEvents(employeeId: string) {
 export async function GET() {
     const authed = await requireUser();
     if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const emp = await myEmployee(authed.profile.email);
-    if (!emp) return NextResponse.json({ error: 'no_employee', message: 'لا يوجد ملف موظف مرتبط بحسابك.' }, { status: 404 });
+    const me = await myIdentity(authed);
 
     const [{ data: events }, { data: tasks }, external, { data: subs }, { data: myParts }] = await Promise.all([
-        supabaseAdmin.from('calendar_events').select('*').eq('owner_employee_id', emp.EmployeeID).order('start_at'),
-        supabaseAdmin.from('tasks').select('TaskID, TaskName, StartDate, EndDate, ProjectID, Status').eq('EmployeeID', emp.EmployeeID).is('deleted_at', null),
-        externalEvents(emp.EmployeeID),
-        supabaseAdmin.from('calendar_subscriptions').select('id, provider, ics_url').eq('owner_employee_id', emp.EmployeeID).eq('active', true),
-        supabaseAdmin.from('meeting_participants').select('meeting_id').eq('employee_id', emp.EmployeeID),
+        supabaseAdmin.from('calendar_events').select('*').eq('owner_employee_id', me.id).order('start_at'),
+        supabaseAdmin.from('tasks').select('TaskID, TaskName, StartDate, EndDate, ProjectID, Status').eq('EmployeeID', me.id).is('deleted_at', null),
+        externalEvents(me.id),
+        supabaseAdmin.from('calendar_subscriptions').select('id, provider, ics_url').eq('owner_employee_id', me.id).eq('active', true),
+        supabaseAdmin.from('meeting_participants').select('meeting_id').eq('employee_id', me.id),
     ]);
 
     // meetings the employee organizes or is invited to (own calendar only — privacy preserved)
@@ -75,14 +83,13 @@ export async function GET() {
         ...meetings.map((m: any) => ({ id: m.id, title: m.title, type: 'meeting', start: m.start_at, end: m.end_at, location: m.location, project: m.project_code, status: m.status, source: 'meeting' })),
         ...external,
     ];
-    return NextResponse.json({ employee: { id: emp.EmployeeID, name: emp.Name }, events: merged, subscriptions: subs || [] });
+    return NextResponse.json({ employee: { id: me.id, name: me.name }, events: merged, subscriptions: subs || [] });
 }
 
 export async function POST(request: Request) {
     const authed = await requireUser();
     if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const emp = await myEmployee(authed.profile.email);
-    if (!emp) return NextResponse.json({ error: 'no_employee', message: 'لا يوجد ملف موظف مرتبط بحسابك.' }, { status: 404 });
+    const me = await myIdentity(authed);
 
     const b = await request.json().catch(() => ({}));
 
@@ -91,12 +98,12 @@ export async function POST(request: Request) {
         const ics_url = (b.ics_url || '').toString().trim();
         const provider = ['google', 'microsoft', 'apple', 'other'].includes(b.provider) ? b.provider : 'other';
         if (!/^https?:\/\//i.test(ics_url)) return NextResponse.json({ error: 'bad_url', message: 'أدخل رابط iCal صحيح (يبدأ بـ http).' }, { status: 400 });
-        const { error } = await supabaseAdmin.from('calendar_subscriptions').insert({ owner_employee_id: emp.EmployeeID, provider, ics_url });
+        const { error } = await supabaseAdmin.from('calendar_subscriptions').insert({ owner_employee_id: me.id, provider, ics_url });
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ ok: true, message: 'تم ربط التقويم — ستظهر أحداثه تلقائياً.' });
     }
     if (b.action === 'unsubscribe') {
-        await supabaseAdmin.from('calendar_subscriptions').delete().eq('id', (b.id || '').toString()).eq('owner_employee_id', emp.EmployeeID);
+        await supabaseAdmin.from('calendar_subscriptions').delete().eq('id', (b.id || '').toString()).eq('owner_employee_id', me.id);
         return NextResponse.json({ ok: true });
     }
 
@@ -105,7 +112,7 @@ export async function POST(request: Request) {
     if (!title || !start_at) return NextResponse.json({ error: 'title and start_at required' }, { status: 400 });
     const type = ['meeting', 'task', 'work', 'project', 'other'].includes(b.type) ? b.type : 'meeting';
     const { error } = await supabaseAdmin.from('calendar_events').insert({
-        owner_employee_id: emp.EmployeeID, title, type, start_at, end_at: b.end_at || null,
+        owner_employee_id: me.id, title, type, start_at, end_at: b.end_at || null,
         location: b.location || null, notes: b.notes || null, project_code: b.project_code || null,
         created_by: authed.profile.email || null,
     });
@@ -116,11 +123,10 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
     const authed = await requireUser();
     if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const emp = await myEmployee(authed.profile.email);
-    if (!emp) return NextResponse.json({ error: 'no_employee' }, { status: 404 });
+    const me = await myIdentity(authed);
     const id = new URL(request.url).searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });
     // only own events
-    await supabaseAdmin.from('calendar_events').delete().eq('id', id).eq('owner_employee_id', emp.EmployeeID);
+    await supabaseAdmin.from('calendar_events').delete().eq('id', id).eq('owner_employee_id', me.id);
     return NextResponse.json({ ok: true });
 }

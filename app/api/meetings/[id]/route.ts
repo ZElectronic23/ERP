@@ -11,6 +11,15 @@ async function myEmployee(email: string | null) {
     return data;
 }
 
+// Same fallback identity as the list route: accounts without an employee row (owner/admin/…)
+// still get a stable id so they can manage meetings they organize.
+async function myIdentity(authed: { user: { id: string }; profile: { email: string } }) {
+    const emp = await myEmployee(authed.profile.email);
+    if (emp) return { id: emp.EmployeeID, name: emp.Name, department: emp.Department as string | null };
+    const { data: u } = await supabaseAdmin.from('users').select('full_name, email').eq('entity_id', authed.user.id).maybeSingle();
+    return { id: `user:${authed.user.id}`, name: u?.full_name || u?.email || authed.profile.email || 'مستخدم', department: null as string | null };
+}
+
 async function nextTaskId(): Promise<string> {
     const { data } = await supabaseAdmin.from('tasks').select('TaskID').ilike('TaskID', 'TSK-%').order('TaskID', { ascending: false }).limit(1);
     let n = 1; if (data && data.length) { const m = String(data[0].TaskID).match(/TSK-(\d+)/); if (m) n = parseInt(m[1]) + 1; }
@@ -21,7 +30,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const authed = await requireUser();
     if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
-    const emp = await myEmployee(authed.profile.email);
+    const me = await myIdentity(authed);
 
     const { data: meeting } = await supabaseAdmin.from('meetings').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
     if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 });
@@ -29,22 +38,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const empIds = Array.from(new Set((parts || []).map((p: any) => p.employee_id)));
     const { data: emps } = await supabaseAdmin.from('employees').select('EmployeeID, Name').in('EmployeeID', empIds.length ? empIds : ['__none__']);
     const nameOf: Record<string, string> = {}; for (const e of emps || []) nameOf[e.EmployeeID] = e.Name;
-    const participants = (parts || []).map((p: any) => ({ ...p, name: nameOf[p.employee_id] || p.employee_id }));
-    const is_organizer = !!emp && meeting.organizer_employee_id === emp.EmployeeID;
+    const participants = (parts || []).map((p: any) => ({ ...p, name: nameOf[p.employee_id] || (p.employee_id === me.id ? me.name : p.employee_id) }));
+    const is_organizer = meeting.organizer_employee_id === me.id;
 
-    return NextResponse.json({ meeting, participants, is_organizer, me: emp ? emp.EmployeeID : null });
+    return NextResponse.json({ meeting, participants, is_organizer, me: me.id });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const authed = await requireUser();
     if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
-    const emp = await myEmployee(authed.profile.email);
-    if (!emp) return NextResponse.json({ error: 'no_employee' }, { status: 404 });
+    const me = await myIdentity(authed);
 
     const { data: meeting } = await supabaseAdmin.from('meetings').select('*').eq('id', id).is('deleted_at', null).maybeSingle();
     if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    const isOrganizer = meeting.organizer_employee_id === emp.EmployeeID;
+    const isOrganizer = meeting.organizer_employee_id === me.id;
 
     const b = await request.json().catch(() => ({}));
     const action = b.action || 'edit';
@@ -53,7 +61,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     // participant responds to their own invite
     if (action === 'respond') {
         const response = ['accepted', 'declined', 'tentative', 'pending'].includes(b.response) ? b.response : 'pending';
-        const { error } = await supabaseAdmin.from('meeting_participants').update({ response }).eq('meeting_id', id).eq('employee_id', emp.EmployeeID);
+        const { error } = await supabaseAdmin.from('meeting_participants').update({ response }).eq('meeting_id', id).eq('employee_id', me.id);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
         return NextResponse.json({ ok: true });
     }
@@ -70,7 +78,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         return NextResponse.json({ ok: true });
     }
     if (action === 'invite') {
-        const ids: string[] = Array.from(new Set((Array.isArray(b.invitee_ids) ? b.invitee_ids : []).map((x: any) => String(x)).filter((x: string) => x && x !== emp.EmployeeID)));
+        const ids: string[] = Array.from(new Set((Array.isArray(b.invitee_ids) ? b.invitee_ids : []).map((x: any) => String(x)).filter((x: string) => x && x !== me.id)));
         if (ids.length) {
             const rows = ids.map(eid => ({ meeting_id: id, employee_id: eid, role: 'required', response: 'pending' }));
             await supabaseAdmin.from('meeting_participants').upsert(rows, { onConflict: 'meeting_id,employee_id', ignoreDuplicates: true });
@@ -110,7 +118,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const { error } = await supabaseAdmin.from('tasks').insert([{
             TaskID, ProjectID: meeting.project_code || null, EmployeeID: it.assignee_employee_id || null,
             TaskName: it.text.slice(0, 200), Status: 'todo', TaskPriority: it.priority || 'medium', ApprovalStatus: 'pending',
-            EndDate: it.due || null, AssignedBy: emp.Name || authed.profile.email || null,
+            EndDate: it.due || null, AssignedBy: me.name || authed.profile.email || null,
             TaskNotes: `من اجتماع: ${meeting.title}`, created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
         }]);
         if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -135,11 +143,10 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ id: 
     const authed = await requireUser();
     if (!authed) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
-    const emp = await myEmployee(authed.profile.email);
-    if (!emp) return NextResponse.json({ error: 'no_employee' }, { status: 404 });
+    const me = await myIdentity(authed);
     const { data: meeting } = await supabaseAdmin.from('meetings').select('organizer_employee_id').eq('id', id).maybeSingle();
     if (!meeting) return NextResponse.json({ error: 'Not found' }, { status: 404 });
-    if (meeting.organizer_employee_id !== emp.EmployeeID) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (meeting.organizer_employee_id !== me.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     await supabaseAdmin.from('meetings').update({ deleted_at: new Date().toISOString(), status: 'cancelled' }).eq('id', id);
     return NextResponse.json({ ok: true });
 }
