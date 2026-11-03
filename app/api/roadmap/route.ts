@@ -51,7 +51,7 @@ export async function GET(request: Request) {
 
     const { data: items } = await supabaseAdmin.from('roadmap_items').select('*').eq('employee_id', target.EmployeeID).is('deleted_at', null).order('requirement').order('target_date', { nullsFirst: false });
     const courseIds = (items || []).filter((i: any) => i.course_id).map((i: any) => i.course_id);
-    let courseMap: Record<string, any> = {}, enrollMap: Record<string, any> = {};
+    const courseMap: Record<string, any> = {}, enrollMap: Record<string, any> = {};
     if (courseIds.length) {
         const [{ data: cs }, { data: enr }] = await Promise.all([
             supabaseAdmin.from('courses').select('id, title_ar, title_en, skill, duration_minutes').in('id', courseIds),

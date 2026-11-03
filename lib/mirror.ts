@@ -161,7 +161,7 @@ function extractReadable(html: string, url: string): MirrorResult {
     const host = (() => { try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
 
     // drop everything that is not readable content
-    let body = html
+    const body = html
         .replace(/<!--[\s\S]*?-->/g, '')
         .replace(/<script\b[\s\S]*?<\/script>/gi, '')
         .replace(/<style\b[\s\S]*?<\/style>/gi, '')

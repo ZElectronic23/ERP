@@ -10,7 +10,7 @@ export async function proxy(req: NextRequest) {
     const path = url.pathname;
 
     // Supabase auth check
-    let response = NextResponse.next({ request: { headers: req.headers } });
+    const response = NextResponse.next({ request: { headers: req.headers } });
 
     const supabase = createServerClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,

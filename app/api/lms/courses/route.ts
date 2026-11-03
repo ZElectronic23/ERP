@@ -45,7 +45,7 @@ export async function GET(request: Request) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     // my enrollments
-    let enrollMap: Record<string, any> = {};
+    const enrollMap: Record<string, any> = {};
     if (emp) {
         const { data: enr } = await supabaseAdmin.from('course_enrollments').select('*').eq('employee_id', emp.EmployeeID);
         for (const e of enr || []) enrollMap[e.course_id] = e;

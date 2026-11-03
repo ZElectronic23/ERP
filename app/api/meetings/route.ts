@@ -41,7 +41,7 @@ export async function GET() {
 
     // participants for the visible meetings, grouped, with names
     const ids = visible.map((m: any) => m.id);
-    let partsByMeeting: Record<string, any[]> = {};
+    const partsByMeeting: Record<string, any[]> = {};
     if (ids.length) {
         const { data: parts } = await supabaseAdmin.from('meeting_participants').select('*').in('meeting_id', ids);
         const empIds = Array.from(new Set((parts || []).map((p: any) => p.employee_id)));

@@ -49,7 +49,7 @@ function extractInitialData(html: string): any | null {
     for (const marker of ['ytInitialData = ', 'ytInitialData"] = ', 'var ytInitialData = ']) {
         const at = html.indexOf(marker);
         if (at === -1) continue;
-        let i = html.indexOf('{', at); if (i === -1) continue;
+        const i = html.indexOf('{', at); if (i === -1) continue;
         let depth = 0, inStr = false, esc = false;
         for (let j = i; j < html.length; j++) {
             const ch = html[j];

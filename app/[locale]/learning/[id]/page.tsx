@@ -68,7 +68,7 @@ export default function CoursePage() {
         if (!res.ok) { setErr(j.message || j.error || 'Error'); return; }
         setData(j); if (!active && j.lessons?.length) setActive(j.lessons[0].id);
     }, [id, active]);
-    useEffect(() => { load(); /* eslint-disable-next-line */ }, [id]);
+    useEffect(() => { load();   }, [id]);
 
     if (err) return <div className="min-h-screen flex items-center justify-center text-red-400" dir={isAr ? 'rtl' : 'ltr'}>{err}</div>;
     if (!data) return <div className="min-h-screen flex items-center justify-center text-[#C0C0C0]">{L('جارٍ التحميل...', 'Loading...')}</div>;
