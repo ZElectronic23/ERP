@@ -1,11 +1,36 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocale } from 'next-intl';
 import { ASSET_CATEGORIES, OS_FAMILIES } from '@/lib/survey/catalog';
 import { TIER_LABEL } from '@/lib/survey/diagnostics';
 
 type Tab = 'procedures' | 'software';
+
+// Difficulty / effort level (support → expert) — directive #2.
+const DIFFICULTY: Record<string, { ar: string; en: string; cls: string }> = {
+    beginner: { ar: 'مبتدئ', en: 'Beginner', cls: 'bg-green-500/15 text-green-300 border-green-500/30' },
+    intermediate: { ar: 'متوسط', en: 'Intermediate', cls: 'bg-sky-500/15 text-sky-300 border-sky-500/30' },
+    advanced: { ar: 'متقدّم', en: 'Advanced', cls: 'bg-orange-500/15 text-orange-300 border-orange-500/30' },
+    expert: { ar: 'خبير', en: 'Expert', cls: 'bg-red-500/15 text-red-300 border-red-500/30' },
+};
+// Command family — explicit per the directive (CMD/PowerShell/Bash/Linux/SQL).
+const COMMAND_TYPE: Record<string, { ar: string; en: string }> = {
+    cmd: { ar: 'CMD', en: 'CMD' },
+    powershell: { ar: 'PowerShell', en: 'PowerShell' },
+    bash: { ar: 'Bash', en: 'Bash' },
+    linux: { ar: 'Linux Shell', en: 'Linux Shell' },
+    sql: { ar: 'SQL', en: 'SQL' },
+    gui: { ar: 'واجهة رسومية', en: 'GUI' },
+    other: { ar: 'أخرى', en: 'Other' },
+};
+// FREE-first pricing label (open-source alternatives before paid) — directive #2.
+const PRICING: Record<string, { ar: string; en: string; cls: string }> = {
+    free: { ar: 'مجاني', en: 'FREE', cls: 'bg-green-500/20 text-green-300 border-green-500/40' },
+    freemium: { ar: 'مجاني جزئياً', en: 'FREEMIUM', cls: 'bg-teal-500/20 text-teal-300 border-teal-500/40' },
+    paid: { ar: 'مدفوع', en: 'PAID', cls: 'bg-amber-500/20 text-amber-300 border-amber-500/40' },
+};
+const PRICING_RANK: Record<string, number> = { free: 0, freemium: 1, paid: 2 };
 
 const STATUS: Record<string, { ar: string; en: string; cls: string }> = {
     draft: { ar: 'مسودة', en: 'Draft', cls: 'bg-silver/20 text-silver' },
@@ -28,6 +53,12 @@ export default function KnowledgePage() {
     const [tab, setTab] = useState<Tab>('procedures');
     const [q, setQ] = useState('');
     const [status, setStatus] = useState('');
+    // client-side facets (applied on the fetched set — keeps one fetch path)
+    const [fCat, setFCat] = useState('');
+    const [fOs, setFOs] = useState('');
+    const [fDiff, setFDiff] = useState('');
+    const [fCmd, setFCmd] = useState('');
+    const [fPrice, setFPrice] = useState('');
     const [rows, setRows] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [err, setErr] = useState('');
@@ -60,6 +91,24 @@ export default function KnowledgePage() {
     }, [tab, q, status]);
 
     useEffect(() => { const t = setTimeout(load, 250); return () => clearTimeout(t); }, [load]);
+
+    // apply the facet filters + FREE-first ordering on the already-fetched rows
+    const shown = useMemo(() => {
+        let r = rows;
+        if (tab === 'procedures') {
+            if (fCat) r = r.filter(x => (x.categories || []).includes(fCat));
+            if (fOs) r = r.filter(x => (x.os_families || []).includes(fOs));
+            if (fCmd) r = r.filter(x => x.command_type === fCmd);
+        } else {
+            if (fOs) r = r.filter(x => (x.supported_os || []).includes(fOs));
+            if (fPrice) r = r.filter(x => x.pricing === fPrice);
+        }
+        if (fDiff) r = r.filter(x => x.difficulty === fDiff);
+        if (tab === 'software') r = [...r].sort((a, b) =>
+            (PRICING_RANK[a.pricing] ?? 3) - (PRICING_RANK[b.pricing] ?? 3) || String(a.name || '').localeCompare(String(b.name || '')));
+        return r;
+    }, [rows, tab, fCat, fOs, fDiff, fCmd, fPrice]);
+    const resetFacets = () => { setFCat(''); setFOs(''); setFDiff(''); setFCmd(''); setFPrice(''); };
 
     const save = async () => {
         if (!edit) return;
@@ -101,7 +150,7 @@ export default function KnowledgePage() {
                 {/* tabs */}
                 <div className="flex gap-2 mb-4">
                     {([['procedures', L('الإجراءات', 'Procedures')], ['software', L('البرامج المعتمدة', 'Approved software')]] as const).map(([k, lab]) => (
-                        <button key={k} onClick={() => { setTab(k as Tab); setRows([]); }} className={`px-4 py-2 rounded-xl text-sm transition ${tab === k ? 'bg-[#DBA935] text-[#3E3B3F] font-bold' : 'bg-white/5 text-[#C0C0C0] hover:bg-white/10'}`}>{lab}</button>
+                        <button key={k} onClick={() => { setTab(k as Tab); setRows([]); resetFacets(); }} className={`px-4 py-2 rounded-xl text-sm transition ${tab === k ? 'bg-[#DBA935] text-[#3E3B3F] font-bold' : 'bg-white/5 text-[#C0C0C0] hover:bg-white/10'}`}>{lab}</button>
                     ))}
                 </div>
 
@@ -114,15 +163,50 @@ export default function KnowledgePage() {
                     </select>
                 </div>
 
+                {/* advanced facets */}
+                <div className="flex flex-wrap gap-2 mb-4">
+                    {tab === 'procedures' && (
+                        <select value={fCat} onChange={e => setFCat(e.target.value)} className={`${field} w-auto`}>
+                            <option value="">{L('كل الفئات', 'All categories')}</option>
+                            {ASSET_CATEGORIES.map(c => <option key={c.key} value={c.key}>{isAr ? c.ar : c.en}</option>)}
+                        </select>
+                    )}
+                    <select value={fOs} onChange={e => setFOs(e.target.value)} className={`${field} w-auto`}>
+                        <option value="">{L('كل أنظمة التشغيل', 'All OS')}</option>
+                        {OS_FAMILIES.map(o => <option key={o.key} value={o.key}>{isAr ? o.ar : o.en}</option>)}
+                    </select>
+                    <select value={fDiff} onChange={e => setFDiff(e.target.value)} className={`${field} w-auto`}>
+                        <option value="">{L('كل المستويات', 'All levels')}</option>
+                        {Object.keys(DIFFICULTY).map(d => <option key={d} value={d}>{isAr ? DIFFICULTY[d].ar : DIFFICULTY[d].en}</option>)}
+                    </select>
+                    {tab === 'procedures' && (
+                        <select value={fCmd} onChange={e => setFCmd(e.target.value)} className={`${field} w-auto`}>
+                            <option value="">{L('كل أنواع الأوامر', 'All command types')}</option>
+                            {Object.keys(COMMAND_TYPE).map(c => <option key={c} value={c}>{isAr ? COMMAND_TYPE[c].ar : COMMAND_TYPE[c].en}</option>)}
+                        </select>
+                    )}
+                    {tab === 'software' && (
+                        <select value={fPrice} onChange={e => setFPrice(e.target.value)} className={`${field} w-auto`}>
+                            <option value="">{L('مجاني ومدفوع', 'Free & paid')}</option>
+                            {Object.keys(PRICING).map(p => <option key={p} value={p}>{isAr ? PRICING[p].ar : PRICING[p].en}</option>)}
+                        </select>
+                    )}
+                    {(fCat || fOs || fDiff || fCmd || fPrice) && (
+                        <button onClick={resetFacets} className="px-3 py-2 rounded-lg bg-white/5 text-[#C0C0C0] text-xs hover:bg-white/10">✕ {L('مسح الفلاتر', 'Clear filters')}</button>
+                    )}
+                </div>
+
                 {err && <div className="mb-3 text-red-400 text-sm">{err}</div>}
 
                 {loading ? <div className="text-center py-16 text-[#C0C0C0]">{L('جارٍ التحميل...', 'Loading...')}</div>
-                    : rows.length === 0 ? <div className="text-center py-16 text-[#C0C0C0] text-sm">{tab === 'software'
+                    : shown.length === 0 ? <div className="text-center py-16 text-[#C0C0C0] text-sm">{tab === 'software'
                         ? L('لا توجد برامج بعد. يضيفها المختص بالحقول الإلزامية (المصدر الرسمي، الترخيص، تاريخ التحقق).', 'No software yet. A specialist adds entries with the required fields (official source, licensing, verification date).')
                         : L('لا توجد نتائج.', 'No results.')}</div>
                         : (
+                            <>
+                            <div className="text-[11px] text-[#C0C0C0]/70 mb-2">{shown.length} {L('عنصر', shown.length === 1 ? 'item' : 'items')}</div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {rows.map(r => (
+                                {shown.map(r => (
                                     <div key={r.id} onClick={() => setView(r)} className="bg-black/30 rounded-xl border border-white/10 p-3 cursor-pointer hover:border-[#DBA935]/40 transition">
                                         <div className="flex justify-between items-start gap-2 mb-1">
                                             <span className="text-white font-bold text-sm">{tab === 'procedures' ? r.title_ar : r.name}</span>
@@ -130,13 +214,18 @@ export default function KnowledgePage() {
                                         </div>
                                         <p className="text-[#C0C0C0] text-xs line-clamp-2">{r.purpose || '—'}</p>
                                         <div className="flex flex-wrap gap-1 mt-2">
+                                            {tab === 'software' && r.pricing && <span className={`text-[10px] px-2 py-0.5 rounded-full border font-bold ${PRICING[r.pricing]?.cls}`}>{isAr ? PRICING[r.pricing]?.ar : PRICING[r.pricing]?.en}</span>}
+                                            {r.difficulty && <span className={`text-[10px] px-2 py-0.5 rounded-full border ${DIFFICULTY[r.difficulty]?.cls}`}>{isAr ? DIFFICULTY[r.difficulty]?.ar : DIFFICULTY[r.difficulty]?.en}</span>}
+                                            {tab === 'procedures' && r.command_type && <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#DBA935]/15 text-[#DBA935] border border-[#DBA935]/30 font-mono">{isAr ? COMMAND_TYPE[r.command_type]?.ar : COMMAND_TYPE[r.command_type]?.en}</span>}
                                             {tab === 'procedures' && r.tier && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#C0C0C0]">{isAr ? TIER_LABEL[r.tier as keyof typeof TIER_LABEL]?.ar : TIER_LABEL[r.tier as keyof typeof TIER_LABEL]?.en}</span>}
                                             {tab === 'procedures' && (r.os_families || []).map((o: string) => <span key={o} className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#C0C0C0]">{o}</span>)}
+                                            {tab === 'procedures' && r.est_minutes && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#C0C0C0]">⏱ {r.est_minutes}{L('د', 'm')}</span>}
                                             {tab === 'software' && <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/10 text-[#C0C0C0]">{isAr ? COMMERCIAL[r.commercial_use]?.ar : COMMERCIAL[r.commercial_use]?.en}</span>}
                                         </div>
                                     </div>
                                 ))}
                             </div>
+                            </>
                         )}
             </div>
 
@@ -163,12 +252,14 @@ export default function KnowledgePage() {
                                 {view.prerequisites && <p><span className="text-[#DBA935]">{L('المتطلبات: ', 'Prerequisites: ')}</span>{view.prerequisites}</p>}
                                 {view.qualification && <p><span className="text-[#DBA935]">{L('المؤهّل المطلوب: ', 'Qualification: ')}</span>{view.qualification}</p>}
                                 <p><span className="text-[#DBA935]">{L('الصلاحية/الأثر: ', 'Privilege/impact: ')}</span>{view.privilege} · {view.impact}{view.data_loss_risk ? ` · ${L('خطر فقد بيانات', 'data-loss risk')}` : ''}</p>
+                                {(view.difficulty || view.command_type || view.est_minutes) && <p><span className="text-[#DBA935]">{L('التصنيف: ', 'Classification: ')}</span>{[view.difficulty && (isAr ? DIFFICULTY[view.difficulty]?.ar : DIFFICULTY[view.difficulty]?.en), view.command_type && (isAr ? COMMAND_TYPE[view.command_type]?.ar : COMMAND_TYPE[view.command_type]?.en), view.est_minutes && `⏱ ${view.est_minutes}${L('د', 'm')}`].filter(Boolean).join(' · ')}</p>}
                             </>) : (<>
                                 {view.publisher && <p><span className="text-[#DBA935]">{L('الناشر: ', 'Publisher: ')}</span>{view.publisher}</p>}
                                 {view.official_source && <p dir="ltr"><span className="text-[#DBA935]">{L('المصدر الرسمي: ', 'Official source: ')}</span>{view.official_source}</p>}
                                 {view.approved_version && <p><span className="text-[#DBA935]">{L('الإصدار المعتمد: ', 'Approved version: ')}</span>{view.approved_version}</p>}
                                 {view.install_instructions && <p><span className="text-[#DBA935]">{L('التثبيت: ', 'Install: ')}</span>{view.install_instructions}</p>}
                                 <p><span className="text-[#DBA935]">{L('الترخيص: ', 'Licensing: ')}</span>{view.licensing || '—'} ({isAr ? COMMERCIAL[view.commercial_use]?.ar : COMMERCIAL[view.commercial_use]?.en})</p>
+                                {(view.pricing || view.difficulty) && <p><span className="text-[#DBA935]">{L('التصنيف: ', 'Classification: ')}</span>{[view.pricing && (isAr ? PRICING[view.pricing]?.ar : PRICING[view.pricing]?.en), view.difficulty && (isAr ? DIFFICULTY[view.difficulty]?.ar : DIFFICULTY[view.difficulty]?.en)].filter(Boolean).join(' · ')}</p>}
                                 {view.security_review && <p><span className="text-[#DBA935]">{L('المراجعة الأمنية: ', 'Security review: ')}</span>{view.security_review}</p>}
                                 {view.limitations && <p><span className="text-[#DBA935]">{L('القيود: ', 'Limitations: ')}</span>{view.limitations}</p>}
                             </>)}
@@ -205,6 +296,8 @@ export default function KnowledgePage() {
                                 <div><label className={lbl}>{L('الأثر على الخدمة', 'Service impact')}</label><select value={edit.impact || 'none'} onChange={e => set('impact', e.target.value)} className={field}><option value="none">{L('لا شيء', 'none')}</option><option value="modifies">{L('قد يُعدّل', 'modifies')}</option><option value="service">{L('يوقف الخدمة', 'service')}</option></select></div>
                                 <label className="flex items-center gap-2 text-sm text-white"><input type="checkbox" checked={!!edit.data_loss_risk} onChange={e => set('data_loss_risk', e.target.checked)} className="accent-[#DBA935] w-4 h-4" />{L('خطر فقد بيانات', 'Data-loss risk')}</label>
                                 <div><label className={lbl}>{L('زمن التنفيذ (دقيقة)', 'Est. minutes')}</label><input type="number" value={edit.est_minutes ?? ''} onChange={e => set('est_minutes', e.target.value)} className={field} /></div>
+                                <div><label className={lbl}>{L('مستوى الصعوبة', 'Difficulty level')}</label><select value={edit.difficulty || ''} onChange={e => set('difficulty', e.target.value)} className={field}><option value="">—</option>{Object.keys(DIFFICULTY).map(d => <option key={d} value={d}>{isAr ? DIFFICULTY[d].ar : DIFFICULTY[d].en}</option>)}</select></div>
+                                <div><label className={lbl}>{L('نوع الأمر', 'Command type')}</label><select value={edit.command_type || ''} onChange={e => set('command_type', e.target.value)} className={field}><option value="">—</option>{Object.keys(COMMAND_TYPE).map(c => <option key={c} value={c}>{isAr ? COMMAND_TYPE[c].ar : COMMAND_TYPE[c].en}</option>)}</select></div>
                             </>) : (<>
                                 <div><label className={lbl}>{L('اسم البرنامج *', 'Name *')}</label><input value={edit.name || ''} onChange={e => set('name', e.target.value)} className={field} /></div>
                                 <div><label className={lbl}>{L('الناشر', 'Publisher')}</label><input value={edit.publisher || ''} onChange={e => set('publisher', e.target.value)} className={field} /></div>
@@ -213,6 +306,8 @@ export default function KnowledgePage() {
                                 <div className="md:col-span-2"><label className={lbl}>{L('أنظمة التشغيل المدعومة', 'Supported OS')}</label><div className="flex flex-wrap gap-1">{OS_FAMILIES.map(o => <button key={o.key} type="button" onClick={() => toggleArr('supported_os', o.key)} className={`text-[11px] px-2 py-1 rounded-full border ${(edit.supported_os || []).includes(o.key) ? 'bg-[#DBA935]/20 border-[#DBA935]/50 text-white' : 'bg-white/5 border-white/10 text-[#C0C0C0]'}`}>{isAr ? o.ar : o.en}</button>)}</div></div>
                                 <div><label className={lbl}>{L('الإصدار المعتمد', 'Approved version')}</label><input value={edit.approved_version || ''} onChange={e => set('approved_version', e.target.value)} className={field} /></div>
                                 <div><label className={lbl}>{L('الاستخدام التجاري', 'Commercial use')}</label><select value={edit.commercial_use || 'unknown'} onChange={e => set('commercial_use', e.target.value)} className={field}>{Object.keys(COMMERCIAL).map(k => <option key={k} value={k}>{isAr ? COMMERCIAL[k].ar : COMMERCIAL[k].en}</option>)}</select></div>
+                                <div><label className={lbl}>{L('التسعير (مجاني أولاً)', 'Pricing (free first)')}</label><select value={edit.pricing || ''} onChange={e => set('pricing', e.target.value)} className={field}><option value="">—</option>{Object.keys(PRICING).map(p => <option key={p} value={p}>{isAr ? PRICING[p].ar : PRICING[p].en}</option>)}</select></div>
+                                <div><label className={lbl}>{L('مستوى الصعوبة', 'Difficulty level')}</label><select value={edit.difficulty || ''} onChange={e => set('difficulty', e.target.value)} className={field}><option value="">—</option>{Object.keys(DIFFICULTY).map(d => <option key={d} value={d}>{isAr ? DIFFICULTY[d].ar : DIFFICULTY[d].en}</option>)}</select></div>
                                 <div className="md:col-span-2"><label className={lbl}>{L('الترخيص وقيود الاستخدام التجاري', 'Licensing & commercial restrictions')}</label><textarea rows={2} value={edit.licensing || ''} onChange={e => set('licensing', e.target.value)} className={field} /></div>
                                 <div className="md:col-span-2"><label className={lbl}>{L('تعليمات التثبيت / الاستخدام المحمول', 'Install / portable use')}</label><textarea rows={2} value={edit.install_instructions || ''} onChange={e => set('install_instructions', e.target.value)} className={field} /></div>
                                 <div className="md:col-span-2"><label className={lbl}>{L('المراجعة الأمنية والقيود', 'Security review & limitations')}</label><input value={edit.security_review || ''} onChange={e => set('security_review', e.target.value)} className={field} /></div>

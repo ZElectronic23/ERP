@@ -49,6 +49,7 @@ export async function POST(request: Request) {
         expected: b.expected || null, interpretation: b.interpretation || null, limitations: b.limitations || null,
         impact: b.impact || 'none', data_loss_risk: !!b.data_loss_risk, qualification: b.qualification || null,
         est_minutes: b.est_minutes ? Number(b.est_minutes) : null, source: b.source || null,
+        difficulty: b.difficulty || null, command_type: b.command_type || null,
         verified_on: b.verified_on || null, review_status,
         change_log: [{ at: new Date().toISOString(), by: email, action: 'created', status: review_status }],
         created_by: entity_id, created_by_name: email,

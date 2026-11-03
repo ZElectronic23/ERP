@@ -6,7 +6,8 @@ import { canEditKb, canApproveKb, KB_STATUSES, RESTRICTED_STATUSES } from '@/lib
 
 const EDITABLE = ['code', 'title_ar', 'title_en', 'purpose', 'models', 'os_versions', 'required_software',
     'required_equipment', 'instructions', 'command', 'tier', 'environment', 'privilege', 'prerequisites',
-    'expected', 'interpretation', 'limitations', 'impact', 'qualification', 'source', 'verified_on'];
+    'expected', 'interpretation', 'limitations', 'impact', 'qualification', 'source', 'verified_on',
+    'difficulty', 'command_type'];
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const authed = await requireUser();

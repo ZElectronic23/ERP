@@ -5,7 +5,8 @@ import { requireUser } from '@/lib/auth/requireAuth';
 import { canEditKb, canApproveKb, KB_STATUSES, RESTRICTED_STATUSES } from '@/lib/survey/kbAuth';
 
 const EDITABLE = ['name', 'publisher', 'purpose', 'official_source', 'supported_versions', 'approved_version',
-    'install_instructions', 'portable_use', 'licensing', 'security_review', 'limitations', 'verified_on'];
+    'install_instructions', 'portable_use', 'licensing', 'security_review', 'limitations', 'verified_on',
+    'difficulty', 'pricing'];
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
     const authed = await requireUser();

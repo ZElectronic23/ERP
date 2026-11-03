@@ -42,6 +42,7 @@ export async function POST(request: Request) {
         approved_version: b.approved_version || null, install_instructions: b.install_instructions || null,
         portable_use: b.portable_use || null, licensing: b.licensing || null, commercial_use,
         admin_required: !!b.admin_required, security_review: b.security_review || null, limitations: b.limitations || null,
+        difficulty: b.difficulty || null, pricing: b.pricing || null,
         verified_on: b.verified_on || null, review_status,
         change_log: [{ at: new Date().toISOString(), by: email, action: 'created', status: review_status }],
         created_by: entity_id, created_by_name: email,
