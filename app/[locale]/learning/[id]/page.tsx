@@ -43,7 +43,10 @@ export default function CoursePage() {
     const [assessMode, setAssessMode] = useState(false);
     const [assessAns, setAssessAns] = useState<Record<string, number>>({});
     const [assessResult, setAssessResult] = useState<any | null>(null);
-    const [showExt, setShowExt] = useState(false);                      // in-app provider embed
+    const [showExt, setShowExt] = useState(false);                      // in-app provider reader
+    const [mirror, setMirror] = useState<any | null>(null);            // mirrored provider content
+    const [mirrorBusy, setMirrorBusy] = useState(false);
+    const [mirrorErr, setMirrorErr] = useState('');
     const [contentTx, setContentTx] = useState<string | null>(null);   // translated reading text
     const [capLang, setCapLang] = useState('');                          // '' = original
     const [caps, setCaps] = useState<any[] | null>(null);
@@ -119,6 +122,18 @@ export default function CoursePage() {
         setCaps(j.cueList || []);
     };
 
+    // Mirror: fetch the provider's public page server-side and read it inside the ERP.
+    const openMirror = async () => {
+        if (showExt) { setShowExt(false); return; }
+        setShowExt(true); setMirrorErr('');
+        if (mirror) return;
+        setMirrorBusy(true);
+        const res = await fetch('/api/lms/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: c.external_url }) });
+        const j = await res.json(); setMirrorBusy(false);
+        if (!res.ok) { setMirrorErr((isAr ? j.message?.[0] : j.message?.[1]) || j.error || L('تعذّر العرض.', 'Could not load.')); setMirror(j.result || null); return; }
+        setMirror(j);
+    };
+
     return (
         <div className="min-h-screen p-4 md:p-6" dir={isAr ? 'rtl' : 'ltr'}>
             <div className="max-w-6xl mx-auto">
@@ -154,17 +169,34 @@ export default function CoursePage() {
                                 <span className="text-xs text-[#C0C0C0]">{e.status === 'completed' ? `✓ ${L('مكتمل', 'Completed')}${e.final_score != null ? ` · ${e.final_score}%` : ''}` : `${e.progress_pct || 0}%`}</span>
                                 <button onClick={() => enroll('unenroll')} className="text-xs text-red-300 px-2 py-1">{L('إلغاء التسجيل', 'Unenrol')}</button>
                             </>}
-                        {c.external_url && <button onClick={() => setShowExt(v => !v)} className="px-4 py-2 rounded-xl bg-green-600/80 text-white text-sm font-bold hover:bg-green-600">{showExt ? L('إخفاء الكورس', 'Hide course') : L('افتح الكورس داخل النظام', 'Open course in-app')}</button>}
+                        {c.external_url && <button onClick={openMirror} className="px-4 py-2 rounded-xl bg-green-600/80 text-white text-sm font-bold hover:bg-green-600">{showExt ? L('إخفاء المحتوى', 'Hide content') : L('اعرض محتوى الكورس داخل النظام', 'Show course content in-app')}</button>}
                         {canManage && <>
                             <button onClick={publish} className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20">{c.status === 'published' ? L('إلغاء النشر', 'Unpublish') : L('نشر', 'Publish')}</button>
                             <button onClick={() => setLessonEdit({ title_ar: '', kind: 'text', sort_order: lessons.length, quiz: [] })} className="px-3 py-1.5 rounded-lg bg-[#DBA935]/20 text-[#DBA935] border border-[#DBA935]/40 text-xs">+ {L('درس', 'Lesson')}</button>
                         </>}
                     </div>
-                    {/* provider content opens INSIDE the ERP (embedded), never a new tab */}
+                    {/* Provider content is MIRRORED (fetched server-side, re-rendered here) so it
+                        reads inside the ERP even when the provider blocks iframes — never a new tab. */}
                     {c.external_url && showExt && (
-                        <div className="mt-3">
-                            <iframe src={c.external_url} className="w-full rounded-xl border border-white/10 bg-white" style={{ height: 640 }} title="course" allow="fullscreen" />
-                            <p className="text-silver/50 text-[11px] mt-1">{L('الكورس يُعرض داخل النظام. لو ظهرت الشاشة فارغة فالمزوّد يمنع التضمين — عندها اعتمد على الدروس والتقييم الداخلي أدناه.', 'The course is shown inside the ERP. If the frame stays blank the provider blocks embedding — then rely on the in-app lessons and assessment below.')}</p>
+                        <div className="mt-3 bg-black/30 rounded-xl border border-white/10 p-4">
+                            {mirrorBusy && <p className="text-[#C0C0C0] text-sm">{L('جارٍ جلب المحتوى من المزوّد...', 'Fetching content from the provider...')}</p>}
+                            {!mirrorBusy && mirrorErr && <p className="text-orange-300 text-sm">{mirrorErr}</p>}
+                            {!mirrorBusy && mirror && (
+                                <article className="max-h-[640px] overflow-y-auto pe-2">
+                                    {mirror.site && <div className="text-[11px] text-silver/50 mb-2">{L('مصدر المحتوى', 'Content source')}: {mirror.site}</div>}
+                                    {mirror.title && <h2 className="text-xl font-bold text-white mb-2">{mirror.title}</h2>}
+                                    {mirror.description && <p className="text-[#C0C0C0] text-sm mb-3">{mirror.description}</p>}
+                                    <div className="space-y-2">
+                                        {(mirror.blocks || []).map((b: any, i: number) => (
+                                            b.t === 'h' ? <h3 key={i} className="text-[#DBA935] font-bold text-sm mt-3">{b.text}</h3>
+                                                : b.t === 'li' ? <div key={i} className="text-[#C0C0C0] text-sm ps-4 relative before:content-['•'] before:absolute before:start-0 before:text-[#DBA935]">{b.text}</div>
+                                                    : <p key={i} className="text-[#C0C0C0] text-sm">{b.text}</p>
+                                        ))}
+                                    </div>
+                                    {(mirror.blocks || []).length === 0 && !mirror.description && <p className="text-silver/50 text-sm">{L('لا محتوى نصي متاح من هذه الصفحة.', 'No readable content available from this page.')}</p>}
+                                </article>
+                            )}
+                            <p className="text-silver/40 text-[11px] mt-3 pt-3 border-t border-white/10">{L('يُعرض محتوى المزوّد العام داخل النظام (قراءة فقط، مع نسب المصدر). الفيديوهات والمعامل المحمية تبقى عند المزوّد؛ اعتمد على الدروس والتقييم الداخلي أدناه لإثبات الإنجاز.', 'The provider’s public content is shown inside the ERP (read-only, with source attribution). Protected videos and labs stay with the provider; rely on the in-app lessons and assessment below to record completion.')}</p>
                         </div>
                     )}
                 </div>
