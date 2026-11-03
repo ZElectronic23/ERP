@@ -25,7 +25,11 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
+      {/* suppressHydrationWarning on body too: browser extensions (e.g. Bitdefender) inject
+          attributes like bis_skin_checked / bis_register onto <body> before React hydrates,
+          which otherwise triggers a hydration-mismatch warning that is not from our code. */}
       <body
+        suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#1a1a1a] text-white`}
       >
         <AppProvider>

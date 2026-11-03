@@ -19,6 +19,8 @@ export default function Header() {
 
     const [currentTime, setCurrentTime] = useState('');
     const [currentDate, setCurrentDate] = useState('');
+    const [shortDate, setShortDate] = useState('');
+    const [fullDate, setFullDate] = useState('');
     const [isDateExpanded, setIsDateExpanded] = useState(false);
     const [isWeatherOpen, setIsWeatherOpen] = useState(false);
     const [weatherData, setWeatherData] = useState<any>(null);
@@ -30,6 +32,13 @@ export default function Header() {
             const now = new Date();
             setCurrentTime(now.toLocaleTimeString(language === 'ar' ? 'ar-EG' : 'en-US', { hour: '2-digit', minute: '2-digit' }));
             setCurrentDate(now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }));
+            // date strings are computed on the client only (avoids SSR/client hydration mismatch)
+            const dn = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' }).slice(0, 3);
+            const d = now.getDate().toString().padStart(2, '0');
+            const mo = (now.getMonth() + 1).toString().padStart(2, '0');
+            const y = now.getFullYear().toString().slice(-2);
+            setShortDate(`${dn} ${d}/${mo}/${y}`);
+            setFullDate(now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
         };
         updateDateTime();
         const timer = setInterval(updateDateTime, 60000);
@@ -38,15 +47,6 @@ export default function Header() {
 
     // بعد الـ Hooks، يمكن وضع return شرطي
     if (pathname?.includes('login')) return null;
-
-    // بقية الكود...
-    const now = new Date();
-    const dayName = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'short' }).slice(0, 3);
-    const day = now.getDate().toString().padStart(2, '0');
-    const month = (now.getMonth() + 1).toString().padStart(2, '0');
-    const year = now.getFullYear().toString().slice(-2);
-    const shortDate = `${dayName} ${day}/${month}/${year}`;
-    const fullDate = now.toLocaleDateString(language === 'ar' ? 'ar-EG' : 'en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     const openWeatherPopup = async () => {
         setIsWeatherOpen(true);

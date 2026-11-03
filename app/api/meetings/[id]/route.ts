@@ -41,7 +41,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const participants = (parts || []).map((p: any) => ({ ...p, name: nameOf[p.employee_id] || (p.employee_id === me.id ? me.name : p.employee_id) }));
     const is_organizer = meeting.organizer_employee_id === me.id;
 
-    return NextResponse.json({ meeting, participants, is_organizer, me: me.id });
+    return NextResponse.json({ meeting, participants, is_organizer, me: me.id, me_name: me.name });
 }
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
