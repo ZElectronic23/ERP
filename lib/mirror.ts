@@ -61,7 +61,22 @@ export interface MirrorResult {
     title: string;
     description: string;
     blocks: { t: 'h' | 'p' | 'li'; text: string }[];
+    videos: string[];   // embeddable player URLs found on the public page
     note?: string;
+}
+
+// Pull embeddable video players from the page (YouTube / Vimeo iframes, youtu.be links,
+// og:video meta). These are embeds the provider already exposes publicly, so they play
+// inside the ERP — this is how the course shows VIDEO, not only text.
+function extractVideos(html: string): string[] {
+    const out = new Set<string>();
+    const add = (id: string, kind: 'yt' | 'vm') => out.add(kind === 'yt' ? `https://www.youtube.com/embed/${id}` : `https://player.vimeo.com/video/${id}`);
+    let m: RegExpExecArray | null;
+    const yt = /(?:youtube(?:-nocookie)?\.com\/(?:embed\/|watch\?v=)|youtu\.be\/)([\w-]{6,})/gi;
+    while ((m = yt.exec(html)) && out.size < 12) add(m[1], 'yt');
+    const vm = /(?:player\.)?vimeo\.com\/(?:video\/)?(\d{5,})/gi;
+    while ((m = vm.exec(html)) && out.size < 12) add(m[1], 'vm');
+    return [...out];
 }
 
 function validate(raw: string): URL {
@@ -160,9 +175,10 @@ function extractReadable(html: string, url: string): MirrorResult {
         push(tag[0] === 'h' ? 'h' : tag === 'li' ? 'li' : 'p', mm[2]);
     }
 
+    const videos = extractVideos(html);
     return {
-        ok: blocks.length > 0 || !!description,
-        url, finalUrl: url, site: host, title, description, blocks,
+        ok: blocks.length > 0 || !!description || videos.length > 0,
+        url, finalUrl: url, site: host, title, description, blocks, videos,
     };
 }
 

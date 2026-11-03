@@ -92,6 +92,7 @@ export default function UserMenu() {
                 { href: 'surveys', label: { ar: 'المسح الفني', en: 'Technical Survey' } },
                 { href: 'knowledge', label: { ar: 'مكتبة المعرفة', en: 'Knowledge Library' } },
                 { href: 'maintenance', label: { ar: 'الصيانة', en: 'Maintenance' } },
+                { href: 'rnd', label: { ar: 'البحث والتطوير', en: 'Research & Development' } },
             ]
         },
         {

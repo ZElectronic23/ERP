@@ -46,6 +46,40 @@ export function exportPriceList(rows: any[], kind: 'products' | 'services', lang
     run(title, new Date().toLocaleDateString(), cols, rows, isAr);
 }
 
+// ---- Real file download (CSV, opens in Excel). More reliable than the print window:
+// no popup to be blocked, produces a saved file. UTF-8 BOM + `sep=,` hint so Arabic text
+// and columns render correctly in Excel on Arabic Windows. ----
+function downloadCsv(filename: string, headers: string[], rows: (string | number)[][]) {
+    const cell = (v: any) => { const s = String(v ?? ''); return /[",\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const lines = ['sep=,', headers.map(cell).join(','), ...rows.map(r => r.map(cell).join(','))];
+    const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+const stamp = () => new Date().toISOString().slice(0, 10);
+
+// Price list as a downloadable CSV/Excel file (filtered set).
+export function exportPriceListCsv(rows: any[], kind: 'products' | 'services', language: 'ar' | 'en') {
+    const isAr = language === 'ar';
+    const idCol = kind === 'products' ? 'product_id' : 'service_id';
+    const headers = [isAr ? 'م' : '#', isAr ? 'الكود' : 'Code', isAr ? 'الاسم' : 'Name', isAr ? 'السعر (ج.م)' : 'Price (EGP)'];
+    const body = rows.map((r, i) => [i + 1, r[idCol] || '', r.name || '', Number(r.sell_price || 0)]);
+    downloadCsv(`${kind === 'products' ? 'products' : 'services'}-pricelist-${stamp()}.csv`, headers, body);
+}
+
+// Inventory as a downloadable CSV/Excel file (products, filtered set).
+export function exportInventoryCsv(rows: any[], language: 'ar' | 'en') {
+    const isAr = language === 'ar';
+    const headers = [isAr ? 'م' : '#', isAr ? 'الكود' : 'Code', isAr ? 'الاسم' : 'Name', isAr ? 'الفئة' : 'Category',
+        isAr ? 'السعر (ج.م)' : 'Price (EGP)', isAr ? 'الكمية' : 'Qty', isAr ? 'الوحدة' : 'Unit'];
+    const body = rows.map((r, i) => [i + 1, r.product_id || '', r.name || '', r.category || '',
+        Number(r.sell_price || 0), Number(r.stock_quantity || 0), r.unit || '']);
+    downloadCsv(`inventory-${stamp()}.csv`, headers, body);
+}
+
 // Inventory report: price list + quantity & unit (products only).
 export function exportInventory(rows: any[], language: 'ar' | 'en') {
     const isAr = language === 'ar';

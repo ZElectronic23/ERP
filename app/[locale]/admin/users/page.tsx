@@ -477,11 +477,12 @@ export default function UsersManagementPage({ params }: UsersPageProps) {
                             <div className="sm:col-span-2"><label className={lbl}>{LL('الاسم الكامل', 'Full name')} *</label><input value={formData.full_name} onChange={e => setFormData({ ...formData, full_name: e.target.value })} className={field} required /></div>
                             <div><label className={lbl}>{LL('البريد', 'Email')} *</label><input type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} className={field} dir="ltr" required disabled={!!editingUser} /></div>
                             <div><label className={lbl}>{LL('الهاتف', 'Phone')}</label><input value={formData.phone} onChange={e => setFormData({ ...formData, phone: e.target.value })} className={field} dir="ltr" /></div>
-                            {!editingUser && <>
-                                <div><label className={lbl}>{LL('كلمة المرور', 'Password')} *</label><input type="password" value={formData.password} onChange={handlePasswordChange} className={field} dir="ltr" /></div>
-                                <div><label className={lbl}>{LL('تأكيد كلمة المرور', 'Confirm password')} *</label><input type="password" value={formData.confirmPassword} onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })} className={field} dir="ltr" /></div>
+                            <>
+                                <div><label className={lbl}>{LL('كلمة المرور', 'Password')} {editingUser ? '' : '*'}</label><input type="password" value={formData.password} onChange={handlePasswordChange} className={field} dir="ltr" autoComplete="new-password" placeholder={editingUser ? LL('اتركها فارغة للإبقاء على الحالية', 'Leave blank to keep current') : ''} /></div>
+                                <div><label className={lbl}>{LL('تأكيد كلمة المرور', 'Confirm password')} {editingUser ? '' : '*'}</label><input type="password" value={formData.confirmPassword} onChange={e => setFormData({ ...formData, confirmPassword: e.target.value })} className={field} dir="ltr" autoComplete="new-password" /></div>
                                 {formData.password && <div className="sm:col-span-2"><PasswordStrengthMeter strength={passwordStrength} /></div>}
-                            </>}
+                                {editingUser && <p className="sm:col-span-2 text-silver/50 text-[11px] -mt-1">{LL('لتغيير كلمة مرور هذا المستخدم اكتب كلمة جديدة؛ غير ذلك اتركها فارغة.', 'To change this user’s password type a new one; otherwise leave it blank.')}</p>}
+                            </>
                             <div><label className={lbl}>{LL('التصنيف', 'Type')}</label>
                                 <select value={formData.entity_type} onChange={e => setFormData({ ...formData, entity_type: e.target.value, role_key: USER_ROLES.find(r => r.type === e.target.value)?.value || 'employee' })} className={field}>
                                     {USER_TYPES.map(ty => <option key={ty.value} value={ty.value}>{LL(TYPE_LABEL[ty.value].ar, TYPE_LABEL[ty.value].en)}</option>)}

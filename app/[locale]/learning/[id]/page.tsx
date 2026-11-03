@@ -186,6 +186,14 @@ export default function CoursePage() {
                                     {mirror.site && <div className="text-[11px] text-silver/50 mb-2">{L('مصدر المحتوى', 'Content source')}: {mirror.site}</div>}
                                     {mirror.title && <h2 className="text-xl font-bold text-white mb-2">{mirror.title}</h2>}
                                     {mirror.description && <p className="text-[#C0C0C0] text-sm mb-3">{mirror.description}</p>}
+                                    {(mirror.videos || []).length > 0 && (
+                                        <div className="mb-4 space-y-3">
+                                            <div className="text-[#DBA935] text-xs font-bold">🎬 {L('فيديوهات الكورس', 'Course videos')}</div>
+                                            {mirror.videos.map((v: string, i: number) => (
+                                                <iframe key={i} src={v} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full aspect-video rounded-xl border border-white/10" title={`video ${i + 1}`} />
+                                            ))}
+                                        </div>
+                                    )}
                                     <div className="space-y-2">
                                         {(mirror.blocks || []).map((b: any, i: number) => (
                                             b.t === 'h' ? <h3 key={i} className="text-[#DBA935] font-bold text-sm mt-3">{b.text}</h3>
