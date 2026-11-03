@@ -64,7 +64,6 @@ export default function RoomPage() {
 
     const displayName = encodeURIComponent(me || (isAr ? 'مشارك' : 'Participant'));
     const jitsiUrl = `https://meet.jit.si/${m.room_name || 'ZElectronic-' + String(id).replace(/-/g, '').slice(0, 20)}#userInfo.displayName=%22${displayName}%22&config.prejoinPageEnabled=true&config.disableDeepLinking=true`;
-    const external = m.provider !== 'jitsi' && m.meet_url;
 
     return (
         <div className="min-h-screen p-3 md:p-4" dir={isAr ? 'rtl' : 'ltr'}>
@@ -94,7 +93,6 @@ export default function RoomPage() {
                             />
                         )}
                         {m.mode !== 'in_person' && <p className="text-silver/50 text-[11px] mt-2">{L('الغرفة تعمل داخل النظام مباشرةً (بلا تحويل خارجي): كاميرا، ميكروفون، مشاركة الشاشة، سبورة تعاونية، عرض مستندات وتسجيل — كلها من داخل الـERP.', 'The room runs inside the ERP directly (no external redirect): camera, mic, screen share, collaborative whiteboard, document present and recording — all in-app.')}</p>}
-                        {m.mode !== 'in_person' && external && <p className="text-silver/40 text-[11px] mt-1">{L('يوجد أيضاً رابط خارجي اختياري: ', 'An optional external link also exists: ')}<a href={m.meet_url} target="_blank" rel="noopener noreferrer" className="text-[#DBA935] underline">{L('فتحه', 'open it')} ↗</a></p>}
                     </div>
 
                     {/* side panel */}

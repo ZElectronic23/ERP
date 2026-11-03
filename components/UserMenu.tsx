@@ -203,30 +203,31 @@ export default function UserMenu() {
                             {(() => {
                                 const rk = (currentUser?.role_key || '').toLowerCase();
                                 const isClient = rk === 'client' || rk === 'regular_client' || currentUser?.entity_type === 'client';
-                                if (isClient) return null; // clients use their own portal, not the staff calendar
+                                if (isClient) return null; // clients use their own portal, not the staff workspace
+                                // compact collapsible group so these items don't take 5 full rows
+                                const items: { href: string; label: { ar: string; en: string } }[] = [
+                                    { href: 'calendar', label: { ar: 'تقويمي', en: 'My calendar' } },
+                                    { href: 'meetings', label: { ar: 'الاجتماعات', en: 'Meetings' } },
+                                    { href: 'learning', label: { ar: 'التعلّم والتدريب', en: 'Learning & training' } },
+                                    { href: 'competency', label: { ar: 'الكفاءات والمهارات', en: 'Competency & skills' } },
+                                    { href: 'roadmap', label: { ar: 'مسار التطوير', en: 'Development roadmap' } },
+                                ];
+                                const open = openGroup === 'workspace' || items.some(i => isActive(i.href));
                                 return (
-                                    <>
-                                    <button onClick={() => goTo('calendar')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('calendar') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('calendar') ? 'bg-gold' : 'bg-silver/40'}`} />
-                                        {language === 'ar' ? 'تقويمي' : 'My calendar'}
-                                    </button>
-                                    <button onClick={() => goTo('meetings')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('meetings') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('meetings') ? 'bg-gold' : 'bg-silver/40'}`} />
-                                        {language === 'ar' ? 'الاجتماعات' : 'Meetings'}
-                                    </button>
-                                    <button onClick={() => goTo('learning')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('learning') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('learning') ? 'bg-gold' : 'bg-silver/40'}`} />
-                                        {language === 'ar' ? 'التعلّم والتدريب' : 'Learning & training'}
-                                    </button>
-                                    <button onClick={() => goTo('competency')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('competency') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('competency') ? 'bg-gold' : 'bg-silver/40'}`} />
-                                        {language === 'ar' ? 'الكفاءات والمهارات' : 'Competency & skills'}
-                                    </button>
-                                    <button onClick={() => goTo('roadmap')} className={`w-full px-3 py-2 text-start text-xs transition-colors flex items-center gap-2 ${isActive('roadmap') ? 'bg-gold/20 text-gold' : 'text-silver hover:bg-gold/10 hover:text-white'}`}>
-                                        <span className={`w-1.5 h-1.5 rounded-full ${isActive('roadmap') ? 'bg-gold' : 'bg-silver/40'}`} />
-                                        {language === 'ar' ? 'مسار التطوير' : 'Development roadmap'}
-                                    </button>
-                                    </>
+                                    <div>
+                                        <button onClick={() => setOpenGroup(open && openGroup === 'workspace' ? null : 'workspace')}
+                                            className="w-full px-3 py-2 text-start text-xs transition-colors flex items-center justify-between text-silver hover:bg-gold/10 hover:text-white">
+                                            <span className="flex items-center gap-2"><span className="w-1.5 h-1.5 rounded-full bg-gold/60" />{language === 'ar' ? 'مساحتي (تقويم/اجتماعات/تعلّم)' : 'My workspace'}</span>
+                                            <span className="text-gold/70 text-[10px]">{open ? '▾' : '▸'}</span>
+                                        </button>
+                                        {open && items.map(it => (
+                                            <button key={it.href} onClick={() => goTo(it.href)}
+                                                className={`w-full ps-7 pe-3 py-1.5 text-start text-xs transition-colors flex items-center gap-2 ${isActive(it.href) ? 'bg-gold/20 text-gold' : 'text-silver/90 hover:bg-gold/10 hover:text-white'}`}>
+                                                <span className={`w-1 h-1 rounded-full ${isActive(it.href) ? 'bg-gold' : 'bg-silver/30'}`} />
+                                                {it.label[language]}
+                                            </button>
+                                        ))}
+                                    </div>
                                 );
                             })()}
                             {visibleGroups.map(g => (

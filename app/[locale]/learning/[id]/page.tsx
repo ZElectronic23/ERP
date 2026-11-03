@@ -43,6 +43,7 @@ export default function CoursePage() {
     const [assessMode, setAssessMode] = useState(false);
     const [assessAns, setAssessAns] = useState<Record<string, number>>({});
     const [assessResult, setAssessResult] = useState<any | null>(null);
+    const [showExt, setShowExt] = useState(false);                      // in-app provider embed
     const [contentTx, setContentTx] = useState<string | null>(null);   // translated reading text
     const [capLang, setCapLang] = useState('');                          // '' = original
     const [caps, setCaps] = useState<any[] | null>(null);
@@ -153,13 +154,19 @@ export default function CoursePage() {
                                 <span className="text-xs text-[#C0C0C0]">{e.status === 'completed' ? `✓ ${L('مكتمل', 'Completed')}${e.final_score != null ? ` · ${e.final_score}%` : ''}` : `${e.progress_pct || 0}%`}</span>
                                 <button onClick={() => enroll('unenroll')} className="text-xs text-red-300 px-2 py-1">{L('إلغاء التسجيل', 'Unenrol')}</button>
                             </>}
-                        {c.external_url && <a href={c.external_url} target="_blank" rel="noopener noreferrer" className="px-4 py-2 rounded-xl bg-green-600/80 text-white text-sm font-bold">{L('فتح لدى المزوّد', 'Open at provider')} ↗</a>}
+                        {c.external_url && <button onClick={() => setShowExt(v => !v)} className="px-4 py-2 rounded-xl bg-green-600/80 text-white text-sm font-bold hover:bg-green-600">{showExt ? L('إخفاء الكورس', 'Hide course') : L('افتح الكورس داخل النظام', 'Open course in-app')}</button>}
                         {canManage && <>
                             <button onClick={publish} className="px-3 py-1.5 rounded-lg bg-white/10 text-white text-xs hover:bg-white/20">{c.status === 'published' ? L('إلغاء النشر', 'Unpublish') : L('نشر', 'Publish')}</button>
                             <button onClick={() => setLessonEdit({ title_ar: '', kind: 'text', sort_order: lessons.length, quiz: [] })} className="px-3 py-1.5 rounded-lg bg-[#DBA935]/20 text-[#DBA935] border border-[#DBA935]/40 text-xs">+ {L('درس', 'Lesson')}</button>
                         </>}
                     </div>
-                    {c.external_url && <p className="text-silver/50 text-[11px] mt-2">{L('هذا الكورس لدى مزوّد خارجي — إتمامه يتم على منصّتهم؛ النظام يسجّل تقدّمك الداخلي والتقييم التكميلي فقط.', 'This course is hosted by an external provider — completion happens on their platform; the ERP tracks only your internal progress and the supplementary assessment.')}</p>}
+                    {/* provider content opens INSIDE the ERP (embedded), never a new tab */}
+                    {c.external_url && showExt && (
+                        <div className="mt-3">
+                            <iframe src={c.external_url} className="w-full rounded-xl border border-white/10 bg-white" style={{ height: 640 }} title="course" allow="fullscreen" />
+                            <p className="text-silver/50 text-[11px] mt-1">{L('الكورس يُعرض داخل النظام. لو ظهرت الشاشة فارغة فالمزوّد يمنع التضمين — عندها اعتمد على الدروس والتقييم الداخلي أدناه.', 'The course is shown inside the ERP. If the frame stays blank the provider blocks embedding — then rely on the in-app lessons and assessment below.')}</p>
+                        </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
