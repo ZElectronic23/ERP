@@ -3,6 +3,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireUser } from '@/lib/auth/requireAuth';
+import { safeFetch } from '@/lib/ssrf';
 
 async function myEmployee(email: string | null) {
     if (!email) return null;
@@ -36,7 +37,8 @@ async function externalEvents(employeeId: string) {
     const events: any[] = [];
     for (const s of subs || []) {
         try {
-            const res = await fetch(s.ics_url, { signal: AbortSignal.timeout(6000) });
+            // SSRF-guarded: the ICS URL is user-supplied, so block internal/metadata hosts.
+            const res = await safeFetch(s.ics_url, { timeoutMs: 6000, maxBytes: 2_000_000 });
             if (!res.ok) continue;
             const text = await res.text();
             for (const e of parseICS(text)) events.push({ id: `ext-${events.length}`, title: e.title, type: 'meeting', start: e.start, end: e.end, source: `external:${s.provider}` });

@@ -148,11 +148,20 @@ export async function createClient(client: NewClient, userId: string) {
     return data as Client;
 }
 
+// Only these columns may be set through an update — blocks mass assignment of the primary key
+// and system columns (ClientId / created_at / updated_at / deleted_at) from the request body.
+const CLIENT_EDITABLE: (keyof NewClient)[] = [
+    'ClientName', 'Mobile No.', 'E-Mail', 'Address', 'DisReason', 'DisValue', 'Client Type',
+    'FollowUpFrequency', 'LastFollowUpDate', 'NextFollowUpDate', 'FollowUpMethod', 'client_kind', 'notes',
+];
+
 export async function updateClient(clientId: string, updates: UpdateClient) {
+    const safe: Record<string, any> = {};
+    for (const k of CLIENT_EDITABLE) if (k in (updates as any)) safe[k as string] = (updates as any)[k];
     const { data, error } = await supabaseAdmin
         .from('clients')
         .update({
-            ...updates,
+            ...safe,
             updated_at: new Date().toISOString(),
         })
         .eq('ClientId', clientId)
