@@ -84,20 +84,17 @@ export default function RoomPage() {
                             <div className="aspect-video rounded-2xl bg-black/40 border border-[#DBA935]/20 flex items-center justify-center text-center p-6">
                                 <div><div className="text-4xl mb-2">📍</div><p className="text-white">{L('اجتماع حضوري', 'In-person meeting')}</p><p className="text-[#C0C0C0] text-sm mt-1">{m.location || L('المكان غير محدد', 'Location not set')}</p></div>
                             </div>
-                        ) : external ? (
-                            <div className="aspect-video rounded-2xl bg-black/40 border border-[#DBA935]/20 flex items-center justify-center text-center p-6">
-                                <div><div className="text-4xl mb-2">🔗</div><p className="text-white mb-3">{L('هذا الاجتماع على منصّة خارجية.', 'This meeting is on an external platform.')}</p>
-                                    <a href={m.meet_url} target="_blank" rel="noopener noreferrer" className="inline-block px-5 py-2 rounded-xl bg-green-600 text-white font-bold text-sm">{L('فتح الرابط', 'Open link')} ↗</a></div>
-                            </div>
                         ) : (
+                            // The virtual room ALWAYS runs inside the ERP (embedded, no external redirect).
                             <iframe
                                 src={jitsiUrl}
                                 allow="camera; microphone; fullscreen; display-capture; autoplay; clipboard-write"
                                 className="w-full aspect-video rounded-2xl border border-[#DBA935]/20 bg-black"
-                                title="Jitsi room"
+                                title="meeting room"
                             />
                         )}
-                        {m.mode !== 'in_person' && !external && <p className="text-silver/50 text-[11px] mt-2">{L('الغرفة الداخلية تعمل بـ Jitsi Meet المجاني: كاميرا، ميكروفون، مشاركة الشاشة، سبورة تعاونية، عرض مستندات وتسجيل — كلها من داخل الغرفة.', 'The built-in room runs on free Jitsi Meet: camera, mic, screen share, collaborative whiteboard, document present and recording — all inside the room.')}</p>}
+                        {m.mode !== 'in_person' && <p className="text-silver/50 text-[11px] mt-2">{L('الغرفة تعمل داخل النظام مباشرةً (بلا تحويل خارجي): كاميرا، ميكروفون، مشاركة الشاشة، سبورة تعاونية، عرض مستندات وتسجيل — كلها من داخل الـERP.', 'The room runs inside the ERP directly (no external redirect): camera, mic, screen share, collaborative whiteboard, document present and recording — all in-app.')}</p>}
+                        {m.mode !== 'in_person' && external && <p className="text-silver/40 text-[11px] mt-1">{L('يوجد أيضاً رابط خارجي اختياري: ', 'An optional external link also exists: ')}<a href={m.meet_url} target="_blank" rel="noopener noreferrer" className="text-[#DBA935] underline">{L('فتحه', 'open it')} ↗</a></p>}
                     </div>
 
                     {/* side panel */}

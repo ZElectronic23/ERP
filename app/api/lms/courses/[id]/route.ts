@@ -46,6 +46,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             kind: ['video', 'text', 'quiz'].includes(l.kind) ? l.kind : 'text', video_url: l.video_url || null,
             content: l.content || null, duration_minutes: l.duration_minutes ? Number(l.duration_minutes) : null,
             quiz: Array.isArray(l.quiz) ? l.quiz : [], sort_order: Number(l.sort_order) || 0,
+            subtitles: l.subtitles || null, subtitles_lang: l.subtitles_lang || null,
         };
         if (b.action === 'add_lesson') { const { data, error } = await supabaseAdmin.from('lessons').insert(row).select().single(); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); return NextResponse.json({ lesson: data }); }
         const { error } = await supabaseAdmin.from('lessons').update(row).eq('id', l.id).eq('course_id', id); if (error) return NextResponse.json({ error: error.message }, { status: 500 }); return NextResponse.json({ ok: true });

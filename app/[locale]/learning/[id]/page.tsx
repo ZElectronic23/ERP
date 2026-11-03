@@ -7,6 +7,22 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocale } from 'next-intl';
 import { useParams, useRouter } from 'next/navigation';
 
+// translation UI languages (client-side list; the server validates against its own set)
+const TX_LANGS: [string, string][] = [['ar', 'العربية'], ['en', 'English'], ['fr', 'Français'], ['es', 'Español'], ['de', 'Deutsch'], ['tr', 'Türkçe'], ['ur', 'اردو']];
+const detectLang = (s: string) => /[؀-ۿ]/.test(s || '') ? 'ar' : 'en';
+// minimal client VTT parser (for showing the original captions without a round-trip)
+function clientCues(raw: string): { start: string; end: string; text: string }[] {
+    const t = (raw || '').replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n').replace(/^WEBVTT[^\n]*\n/, '').trim();
+    if (!t) return [];
+    return t.split(/\n\s*\n/).map(b => {
+        const lines = b.split('\n').filter(l => l.trim());
+        const i = lines.findIndex(l => l.includes('-->')); if (i === -1) return null;
+        const m = lines[i].match(/([\d:.,]+)\s*-->\s*([\d:.,]+)/); if (!m) return null;
+        const txt = lines.slice(i + 1).join('\n').trim(); if (!txt) return null;
+        return { start: m[1].replace(',', '.'), end: m[2].replace(',', '.'), text: txt };
+    }).filter(Boolean) as any;
+}
+
 function embed(url: string): string {
     if (!url) return '';
     const yt = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([\w-]{6,})/);
@@ -27,6 +43,10 @@ export default function CoursePage() {
     const [assessMode, setAssessMode] = useState(false);
     const [assessAns, setAssessAns] = useState<Record<string, number>>({});
     const [assessResult, setAssessResult] = useState<any | null>(null);
+    const [contentTx, setContentTx] = useState<string | null>(null);   // translated reading text
+    const [capLang, setCapLang] = useState('');                          // '' = original
+    const [caps, setCaps] = useState<any[] | null>(null);
+    const [txBusy, setTxBusy] = useState(false);
 
     const field = 'w-full bg-black/30 border border-[#DBA935]/20 rounded-lg px-3 py-2 text-sm text-white focus:border-[#DBA935]/60 outline-none';
     const lbl = 'block text-xs text-[#C0C0C0] mb-1';
@@ -79,6 +99,25 @@ export default function CoursePage() {
     const delLesson = async (lid: string) => { if (!confirm(L('حذف الدرس؟', 'Delete lesson?'))) return; await fetch(`/api/lms/courses/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'delete_lesson', lesson_id: lid }) }); load(); };
     const publish = async () => { await fetch(`/api/lms/courses/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: c.status === 'published' ? 'draft' : 'published' }) }); load(); };
 
+    const resetLessonView = () => { setQuizAnswers({}); setQuizResult(null); setAssessMode(false); setContentTx(null); setCapLang(''); setCaps(null); };
+    const translateContent = async (lang: string) => {
+        if (!lang || !lesson?.content) { setContentTx(null); return; }
+        setTxBusy(true);
+        const res = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'text', text: lesson.content, target: lang, source: detectLang(lesson.content) }) });
+        const j = await res.json(); setTxBusy(false);
+        if (!res.ok) { setErr(j.message || j.error); return; }
+        setContentTx(j.translated);
+    };
+    const loadCaps = async (lang: string) => {
+        setCapLang(lang);
+        if (!lang) { setCaps(clientCues(lesson.subtitles)); return; }
+        setTxBusy(true);
+        const res = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'subtitles', vtt: lesson.subtitles, target: lang, source: detectLang(lesson.subtitles) }) });
+        const j = await res.json(); setTxBusy(false);
+        if (!res.ok) { setErr(j.message || j.error); return; }
+        setCaps(j.cueList || []);
+    };
+
     return (
         <div className="min-h-screen p-4 md:p-6" dir={isAr ? 'rtl' : 'ltr'}>
             <div className="max-w-6xl mx-auto">
@@ -130,7 +169,7 @@ export default function CoursePage() {
                         {lessons.length === 0 && <p className="text-silver/50 text-xs px-1">{L('لا دروس بعد.', 'No lessons yet.')}</p>}
                         <div className="space-y-1">
                             {lessons.map((l: any) => (
-                                <div key={l.id} className={`rounded-lg px-2 py-2 cursor-pointer flex items-center justify-between gap-1 ${active === l.id ? 'bg-[#DBA935]/20' : 'hover:bg-white/5'}`} onClick={() => { setActive(l.id); setQuizAnswers({}); setQuizResult(null); setAssessMode(false); }}>
+                                <div key={l.id} className={`rounded-lg px-2 py-2 cursor-pointer flex items-center justify-between gap-1 ${active === l.id ? 'bg-[#DBA935]/20' : 'hover:bg-white/5'}`} onClick={() => { setActive(l.id); resetLessonView(); }}>
                                     <span className="text-xs text-white flex items-center gap-2">
                                         <span>{done.includes(l.id) ? '✅' : l.kind === 'video' ? '🎬' : l.kind === 'quiz' ? '📝' : '📄'}</span>
                                         {isAr ? l.title_ar : (l.title_en || l.title_ar)}
@@ -175,7 +214,41 @@ export default function CoursePage() {
                                 <div>
                                     <h3 className="text-white font-bold mb-3">{isAr ? lesson.title_ar : (lesson.title_en || lesson.title_ar)}</h3>
                                     {lesson.kind === 'video' && lesson.video_url && <iframe src={embed(lesson.video_url)} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full aspect-video rounded-xl border border-white/10 mb-3" title="lesson" />}
-                                    {lesson.content && <div className="text-[#C0C0C0] text-sm whitespace-pre-wrap mb-3">{lesson.content}</div>}
+
+                                    {/* captions with on-demand translation (timestamps preserved) */}
+                                    {lesson.kind === 'video' && lesson.subtitles && (
+                                        <div className="bg-black/30 rounded-xl border border-white/10 p-3 mb-3">
+                                            <div className="flex items-center justify-between gap-2 mb-2">
+                                                <span className="text-[#DBA935] text-xs font-bold">🗩 {L('الترجمة النصية', 'Captions')}</span>
+                                                <select value={capLang} onChange={e => loadCaps(e.target.value)} className="bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-white">
+                                                    <option value="">{L('الأصلية', 'Original')}</option>
+                                                    {TX_LANGS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                                                </select>
+                                            </div>
+                                            {txBusy && <div className="text-silver/50 text-xs">{L('جارٍ الترجمة...', 'Translating...')}</div>}
+                                            <div className="max-h-48 overflow-y-auto space-y-1 text-xs">
+                                                {(caps ?? clientCues(lesson.subtitles)).map((cue: any, i: number) => (
+                                                    <div key={i} className="flex gap-2"><span className="text-silver/40 font-mono shrink-0">{String(cue.start).split('.')[0]}</span><span className="text-[#C0C0C0]">{cue.text}</span></div>
+                                                ))}
+                                            </div>
+                                            {capLang && <p className="text-silver/40 text-[10px] mt-1">{L('ترجمة آلية (غير رسمية).', 'Machine translation (unofficial).')}</p>}
+                                        </div>
+                                    )}
+
+                                    {lesson.content && (
+                                        <div className="mb-3">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="text-silver/50 text-[11px]">{L('ترجمة:', 'Translate:')}</span>
+                                                <select onChange={e => translateContent(e.target.value)} className="bg-black/30 border border-white/10 rounded-lg px-2 py-1 text-xs text-white">
+                                                    <option value="">{L('بدون', 'Off')}</option>
+                                                    {TX_LANGS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                                                </select>
+                                                {txBusy && <span className="text-silver/50 text-[11px]">{L('جارٍ...', '...')}</span>}
+                                            </div>
+                                            <div className="text-[#C0C0C0] text-sm whitespace-pre-wrap">{contentTx || lesson.content}</div>
+                                            {contentTx && <p className="text-silver/40 text-[10px] mt-1">{L('ترجمة آلية (غير رسمية).', 'Machine translation (unofficial).')}</p>}
+                                        </div>
+                                    )}
                                     {lesson.kind === 'quiz' && (lesson.quiz || []).length > 0 && (
                                         <div className="space-y-3">
                                             {quizResult ? (
@@ -214,6 +287,7 @@ export default function CoursePage() {
                                 <div><label className={lbl}>{L('الترتيب', 'Order')}</label><input type="number" value={lessonEdit.sort_order ?? 0} onChange={e => setLessonEdit({ ...lessonEdit, sort_order: e.target.value })} className={field} /></div>
                             </div>
                             {lessonEdit.kind === 'video' && <div><label className={lbl}>{L('رابط الفيديو (YouTube/Vimeo/مباشر)', 'Video URL (YouTube/Vimeo/direct)')}</label><input dir="ltr" value={lessonEdit.video_url || ''} onChange={e => setLessonEdit({ ...lessonEdit, video_url: e.target.value })} className={field} /></div>}
+                            {lessonEdit.kind === 'video' && <div><label className={lbl}>{L('الترجمة النصية (VTT/SRT — تُترجَم آلياً عند الطلب)', 'Captions (VTT/SRT — auto-translated on demand)')}</label><textarea dir="ltr" rows={4} value={lessonEdit.subtitles || ''} onChange={e => setLessonEdit({ ...lessonEdit, subtitles: e.target.value })} placeholder={'WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n...'} className={field} /></div>}
                             <div><label className={lbl}>{L('المحتوى / الشرح', 'Content / notes')}</label><textarea rows={4} value={lessonEdit.content || ''} onChange={e => setLessonEdit({ ...lessonEdit, content: e.target.value })} className={field} /></div>
                             {lessonEdit.kind === 'quiz' && (
                                 <div>
