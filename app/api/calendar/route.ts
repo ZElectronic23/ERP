@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { requireUser } from '@/lib/auth/requireAuth';
 import { safeFetch } from '@/lib/ssrf';
+import { fetchGoogleEvents, getConnection, disconnect, googleConfigured } from '@/lib/googleCalendar';
 
 async function myEmployee(email: string | null) {
     if (!email) return null;
@@ -69,6 +70,9 @@ export async function GET() {
         supabaseAdmin.from('meeting_participants').select('meeting_id').eq('employee_id', me.id),
     ]);
 
+    // Google Calendar events (only if the user connected their account)
+    const [googleEvents, googleConn] = await Promise.all([fetchGoogleEvents(authed.user.id), getConnection(authed.user.id)]);
+
     // meetings the employee organizes or is invited to (own calendar only — privacy preserved)
     const meetingIds = Array.from(new Set((myParts || []).map((p: any) => p.meeting_id)));
     let meetings: any[] = [];
@@ -82,8 +86,12 @@ export async function GET() {
         ...(tasks || []).filter((t: any) => t.StartDate || t.EndDate).map((t: any) => ({ id: t.TaskID, title: t.TaskName, type: 'task', start: t.StartDate, end: t.EndDate, project: t.ProjectID, status: t.Status, source: 'task' })),
         ...meetings.map((m: any) => ({ id: m.id, title: m.title, type: 'meeting', start: m.start_at, end: m.end_at, location: m.location, project: m.project_code, status: m.status, source: 'meeting' })),
         ...external,
+        ...googleEvents.map((e: any, i: number) => ({ id: `gcal-${i}`, title: e.title, type: 'meeting', start: e.start, end: e.end, source: 'google' })),
     ];
-    return NextResponse.json({ employee: { id: me.id, name: me.name }, events: merged, subscriptions: subs || [] });
+    return NextResponse.json({
+        employee: { id: me.id, name: me.name }, events: merged, subscriptions: subs || [],
+        google: { configured: googleConfigured(), connected: googleConn.connected, email: googleConn.email },
+    });
 }
 
 export async function POST(request: Request) {
@@ -104,6 +112,10 @@ export async function POST(request: Request) {
     }
     if (b.action === 'unsubscribe') {
         await supabaseAdmin.from('calendar_subscriptions').delete().eq('id', (b.id || '').toString()).eq('owner_employee_id', me.id);
+        return NextResponse.json({ ok: true });
+    }
+    if (b.action === 'google_disconnect') {
+        await disconnect(authed.user.id);
         return NextResponse.json({ ok: true });
     }
 

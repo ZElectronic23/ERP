@@ -53,6 +53,23 @@ export default function CalendarPage() {
         setLinkForm({ provider: 'google', ics_url: '' }); setLinkShow(false); load();
     };
     const unsubscribe = async (id: string) => { await fetch('/api/calendar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'unsubscribe', id }) }); load(); };
+    // Google Calendar: OAuth sign-in (no link to paste). connect = top-level redirect to our route.
+    const connectGoogle = () => { window.location.href = '/api/calendar/google/connect'; };
+    const disconnectGoogle = async () => { await fetch('/api/calendar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'google_disconnect' }) }); load(); };
+    // one-time toast from the OAuth callback (?google=connected|not_configured|error|denied|bad_state)
+    useEffect(() => {
+        const g = new URLSearchParams(window.location.search).get('google');
+        if (!g) return;
+        const msg: Record<string, [string, string]> = {
+            connected: ['تم ربط تقويم Google ✓', 'Google Calendar connected ✓'],
+            not_configured: ['ربط Google غير مُفعَّل بعد (ينقص إعداد المفاتيح).', 'Google linking is not enabled yet (keys missing).'],
+            error: ['تعذّر ربط Google، حاول مجدداً.', 'Could not connect Google, try again.'],
+            denied: ['أُلغي الربط.', 'Connection cancelled.'],
+            bad_state: ['انتهت صلاحية الطلب، حاول مجدداً.', 'Request expired, try again.'],
+        };
+        setLinkMsg((isAr ? msg[g]?.[0] : msg[g]?.[1]) || '');
+        window.history.replaceState({}, '', window.location.pathname);
+    }, [isAr]);
 
     const create = async () => {
         if (!form.title.trim() || !form.start_at) { setErr(L('أدخل العنوان ووقت البداية', 'Enter title and start')); return; }
@@ -96,10 +113,14 @@ export default function CalendarPage() {
                         <h1 className="text-2xl font-alata text-gold">{L('تقويمي', 'My calendar')}</h1>
                         <p className="text-silver/60 text-sm">{data.employee.name} · {L('اجتماعاتك ومهامك وأعمالك ومشاريعك — ما تراه يخصّك وحدك.', 'Your meetings, tasks, work and projects — only yours.')}</p>
                     </div>
-                    <div className="flex gap-2">
-                        <button onClick={() => { setLinkMsg(''); setLinkShow(true); }} className="px-3 py-2 bg-silver/10 text-silver rounded-lg text-sm hover:bg-silver/20">🔗 {L('ربط تقويم', 'Link calendar')}</button>
+                    <div className="flex gap-2 flex-wrap">
+                        {data.google?.connected
+                            ? <span className="inline-flex items-center gap-1 px-3 py-2 rounded-lg bg-green-600/15 text-green-300 text-sm">📅 Google{data.google.email ? `: ${data.google.email}` : ''}<button onClick={disconnectGoogle} title={L('فصل', 'Disconnect')} className="text-red-300 hover:text-red-200 ms-1">✕</button></span>
+                            : <button onClick={connectGoogle} className="px-3 py-2 bg-white/10 text-white rounded-lg text-sm hover:bg-white/20" title={data.google?.configured ? '' : L('يحتاج إعداد المفاتيح', 'Needs key setup')}>📅 {L('ربط تقويم Google', 'Connect Google Calendar')}</button>}
+                        <button onClick={() => { setLinkMsg(''); setLinkShow(true); }} className="px-3 py-2 bg-silver/10 text-silver rounded-lg text-sm hover:bg-silver/20">🔗 {L('رابط iCal', 'iCal link')}</button>
                         <button onClick={() => { setForm(empty); setShow(true); }} className="px-4 py-2 bg-gold text-darkwhite rounded-lg font-bold text-sm hover:bg-yellow-600">+ {L('حدث جديد', 'New event')}</button>
                     </div>
+                    {linkMsg && <div className="w-full text-xs text-gold mt-1">{linkMsg}</div>}
                 </div>
 
                 {/* Smart alerts graded by importance */}
