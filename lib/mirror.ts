@@ -69,13 +69,32 @@ export interface MirrorResult {
 // og:video meta). These are embeds the provider already exposes publicly, so they play
 // inside the ERP — this is how the course shows VIDEO, not only text.
 function extractVideos(html: string): string[] {
-    const out = new Set<string>();
-    const add = (id: string, kind: 'yt' | 'vm') => out.add(kind === 'yt' ? `https://www.youtube.com/embed/${id}` : `https://player.vimeo.com/video/${id}`);
+    const out = new Set<string>();           // de-duped embed URLs
+    const ytIds = new Set<string>();         // de-dupe YouTube by id regardless of URL form
+    const h = html.replace(/&amp;/g, '&').replace(/\\\//g, '/').replace(/\\u0026/g, '&'); // unescape JSON/HTML
+    const CAP = 20;
+    const addYt = (id: string) => { if (id.length === 11 && !ytIds.has(id)) { ytIds.add(id); out.add(`https://www.youtube.com/embed/${id}`); } };
+    const addVm = (id: string) => out.add(`https://player.vimeo.com/video/${id}`);
     let m: RegExpExecArray | null;
-    const yt = /(?:youtube(?:-nocookie)?\.com\/(?:embed\/|watch\?v=)|youtu\.be\/)([\w-]{6,})/gi;
-    while ((m = yt.exec(html)) && out.size < 12) add(m[1], 'yt');
+    // YouTube: embed/watch/youtu.be, plus JSON blobs ("videoId":"..", embedUrl, url=)
+    const yt = /(?:youtube(?:-nocookie)?\.com\/(?:embed\/|watch\?v=|v\/)|youtu\.be\/|["']videoId["']\s*:\s*["']|[?&]v=)([\w-]{11})/gi;
+    while ((m = yt.exec(h)) && out.size < CAP) addYt(m[1]);
+    // YouTube playlist → embed the whole list
+    const pl = /[?&]list=([\w-]{10,})/i.exec(h); if (pl) out.add(`https://www.youtube.com/embed/videoseries?list=${pl[1]}`);
+    // Vimeo
     const vm = /(?:player\.)?vimeo\.com\/(?:video\/)?(\d{5,})/gi;
-    while ((m = vm.exec(html)) && out.size < 12) add(m[1], 'vm');
+    while ((m = vm.exec(h)) && out.size < CAP) addVm(m[1]);
+    // og:video / twitter:player meta
+    const og = /<meta[^>]+(?:property|name)=["'](?:og:video(?::url|:secure_url)?|twitter:player)["'][^>]+content=["']([^"']+)["']/gi;
+    while ((m = og.exec(html)) && out.size < CAP) {
+        const url = m[1].replace(/&amp;/g, '&');
+        const y = url.match(/(?:embed\/|watch\?v=|youtu\.be\/)([\w-]{11})/); if (y) { addYt(y[1]); continue; }
+        const v = url.match(/vimeo\.com\/(?:video\/)?(\d{5,})/); if (v) { addVm(v[1]); continue; }
+        if (/^https:\/\//i.test(url) && /\.(mp4|webm)(\?|$)/i.test(url)) out.add(url);
+    }
+    // direct <video src> / <source src>
+    const vid = /<(?:video|source)[^>]+src=["']([^"']+\.(?:mp4|webm)[^"']*)["']/gi;
+    while ((m = vid.exec(html)) && out.size < CAP) { const u = m[1]; if (/^https:\/\//i.test(u)) out.add(u.replace(/&amp;/g, '&')); }
     return [...out];
 }
 

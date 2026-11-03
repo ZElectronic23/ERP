@@ -47,6 +47,9 @@ export default function CoursePage() {
     const [mirror, setMirror] = useState<any | null>(null);            // mirrored provider content
     const [mirrorBusy, setMirrorBusy] = useState(false);
     const [mirrorErr, setMirrorErr] = useState('');
+    const [mirrorLang, setMirrorLang] = useState('');                  // '' = original
+    const [mirrorTx, setMirrorTx] = useState<{ title?: string; description?: string; blocks?: string[] } | null>(null);
+    const [mirrorTxBusy, setMirrorTxBusy] = useState(false);
     const [contentTx, setContentTx] = useState<string | null>(null);   // translated reading text
     const [capLang, setCapLang] = useState('');                          // '' = original
     const [caps, setCaps] = useState<any[] | null>(null);
@@ -131,7 +134,19 @@ export default function CoursePage() {
         const res = await fetch('/api/lms/mirror', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: c.external_url }) });
         const j = await res.json(); setMirrorBusy(false);
         if (!res.ok) { setMirrorErr((isAr ? j.message?.[0] : j.message?.[1]) || j.error || L('تعذّر العرض.', 'Could not load.')); setMirror(j.result || null); return; }
-        setMirror(j);
+        setMirror(j); setMirrorTx(null); setMirrorLang('');
+    };
+    // Translate the mirrored content (title + description + all blocks) in one batch.
+    const translateMirror = async (lang: string) => {
+        setMirrorLang(lang);
+        if (!lang || !mirror) { setMirrorTx(null); return; }
+        const texts = [mirror.title || '', mirror.description || '', ...(mirror.blocks || []).map((b: any) => b.text)];
+        setMirrorTxBusy(true);
+        const res = await fetch('/api/translate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'batch', texts, target: lang, source: detectLang((mirror.blocks?.[0]?.text) || mirror.title || 'en') }) });
+        const j = await res.json(); setMirrorTxBusy(false);
+        if (!res.ok) { setErr((j.message) || j.error); return; }
+        const tr = j.translations || [];
+        setMirrorTx({ title: tr[0], description: tr[1], blocks: tr.slice(2) });
     };
 
     return (
@@ -183,9 +198,19 @@ export default function CoursePage() {
                             {!mirrorBusy && mirrorErr && <p className="text-orange-300 text-sm">{mirrorErr}</p>}
                             {!mirrorBusy && mirror && (
                                 <article className="max-h-[640px] overflow-y-auto pe-2">
-                                    {mirror.site && <div className="text-[11px] text-silver/50 mb-2">{L('مصدر المحتوى', 'Content source')}: {mirror.site}</div>}
-                                    {mirror.title && <h2 className="text-xl font-bold text-white mb-2">{mirror.title}</h2>}
-                                    {mirror.description && <p className="text-[#C0C0C0] text-sm mb-3">{mirror.description}</p>}
+                                    <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
+                                        {mirror.site && <div className="text-[11px] text-silver/50">{L('مصدر المحتوى', 'Content source')}: {mirror.site}</div>}
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-silver/50 text-[11px]">{L('ترجمة:', 'Translate:')}</span>
+                                            <select value={mirrorLang} onChange={e => translateMirror(e.target.value)} className="bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-xs text-white">
+                                                <option value="">{L('الأصلية', 'Original')}</option>
+                                                {TX_LANGS.map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+                                            </select>
+                                            {mirrorTxBusy && <span className="text-silver/50 text-[11px]">{L('جارٍ...', '...')}</span>}
+                                        </div>
+                                    </div>
+                                    {(mirrorTx?.title || mirror.title) && <h2 className="text-xl font-bold text-white mb-2">{mirrorTx?.title || mirror.title}</h2>}
+                                    {(mirrorTx?.description || mirror.description) && <p className="text-[#C0C0C0] text-sm mb-3">{mirrorTx?.description || mirror.description}</p>}
                                     {(mirror.videos || []).length > 0 && (
                                         <div className="mb-4 space-y-3">
                                             <div className="text-[#DBA935] text-xs font-bold">🎬 {L('فيديوهات الكورس', 'Course videos')}</div>
@@ -195,12 +220,14 @@ export default function CoursePage() {
                                         </div>
                                     )}
                                     <div className="space-y-2">
-                                        {(mirror.blocks || []).map((b: any, i: number) => (
-                                            b.t === 'h' ? <h3 key={i} className="text-[#DBA935] font-bold text-sm mt-3">{b.text}</h3>
-                                                : b.t === 'li' ? <div key={i} className="text-[#C0C0C0] text-sm ps-4 relative before:content-['•'] before:absolute before:start-0 before:text-[#DBA935]">{b.text}</div>
-                                                    : <p key={i} className="text-[#C0C0C0] text-sm">{b.text}</p>
-                                        ))}
+                                        {(mirror.blocks || []).map((b: any, i: number) => {
+                                            const text = mirrorTx?.blocks?.[i] ?? b.text;
+                                            return b.t === 'h' ? <h3 key={i} className="text-[#DBA935] font-bold text-sm mt-3">{text}</h3>
+                                                : b.t === 'li' ? <div key={i} className="text-[#C0C0C0] text-sm ps-4 relative before:content-['•'] before:absolute before:start-0 before:text-[#DBA935]">{text}</div>
+                                                    : <p key={i} className="text-[#C0C0C0] text-sm">{text}</p>;
+                                        })}
                                     </div>
+                                    {mirrorLang && mirrorTx && <p className="text-silver/40 text-[10px] mt-2">{L('ترجمة آلية (غير رسمية).', 'Machine translation (unofficial).')}</p>}
                                     {(mirror.blocks || []).length === 0 && !mirror.description && <p className="text-silver/50 text-sm">{L('لا محتوى نصي متاح من هذه الصفحة.', 'No readable content available from this page.')}</p>}
                                 </article>
                             )}

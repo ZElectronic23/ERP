@@ -14,7 +14,7 @@ import Image from 'next/image';
 import CategoryDropdown from '@/components/CategoryDropdown';
 import Dropdown from '@/components/ui/Dropdown';
 import { useRouter } from 'next/navigation';
-import { exportPriceList, exportInventory, exportPriceListCsv, exportInventoryCsv } from '@/lib/priceList';
+import { reportModel, downloadReportCsv, printReport, reportPreviewHtml, type ReportMode, type ReportModel } from '@/lib/priceList';
 
 interface ProductsPageProps {
     params: Promise<{ locale: string }>;
@@ -46,6 +46,8 @@ export default function ProductsPage({ params }: ProductsPageProps) {
     const [editingProduct, setEditingProduct] = useState<any>(null);
     const [searchSuggestions, setSearchSuggestions] = useState<any[]>([]);
     const [showAutocomplete, setShowAutocomplete] = useState(false);
+    const [preview, setPreview] = useState<ReportModel | null>(null);
+    const openPreview = (mode: ReportMode) => setPreview(reportModel(data, mode, activeTab, language));
 
     // ===== Pagination =====
     const [currentPage, setCurrentPage] = useState(1);
@@ -288,45 +290,27 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                         <span className="ms-auto text-silver/70 text-xs">
                             {data.length} {language === 'ar' ? 'عنصر' : 'items'}
                         </span>
-                        {/* Export the CURRENTLY FILTERED set. CSV = reliable Excel file (no popup);
-                            the small 🖨 opens the print/PDF view. */}
-                        <span className="inline-flex items-center rounded-full overflow-hidden border border-gold/30">
-                            <button
-                                type="button"
-                                onClick={() => exportPriceListCsv(data, activeTab, language)}
-                                disabled={data.length === 0}
-                                className="px-3 py-1.5 text-xs font-alata bg-gold/15 text-gold hover:bg-gold/30 transition disabled:opacity-40"
-                                title={language === 'ar' ? 'تنزيل قائمة الأسعار كملف Excel/CSV (النتائج المعروضة)' : 'Download price list as Excel/CSV (filtered results)'}
-                            >
-                                🧾 {language === 'ar' ? 'تصدير قائمة الأسعار' : 'Export price list'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => exportPriceList(data, activeTab, language)}
-                                disabled={data.length === 0}
-                                className="px-2 py-1.5 text-xs bg-gold/5 text-gold/80 hover:bg-gold/20 border-s border-gold/30 transition disabled:opacity-40"
-                                title={language === 'ar' ? 'طباعة / حفظ PDF' : 'Print / save PDF'}
-                            >🖨</button>
-                        </span>
+                        {/* Export the CURRENTLY FILTERED set — opens an in-app preview, then
+                            Excel (formatted .xls) or Print/PDF from there. */}
+                        <button
+                            type="button"
+                            onClick={() => openPreview('price')}
+                            disabled={data.length === 0}
+                            className="px-3 py-1.5 rounded-full text-xs font-alata bg-gold/15 text-gold border border-gold/30 hover:bg-gold/30 transition disabled:opacity-40"
+                            title={language === 'ar' ? 'معاينة قائمة الأسعار ثم تصدير Excel أو طباعة/PDF' : 'Preview price list, then Excel or Print/PDF'}
+                        >
+                            🧾 {language === 'ar' ? 'قائمة الأسعار' : 'Price list'}
+                        </button>
                         {activeTab === 'products' && (
-                            <span className="inline-flex items-center rounded-full overflow-hidden border border-gold/20">
-                                <button
-                                    type="button"
-                                    onClick={() => exportInventoryCsv(data, language)}
-                                    disabled={data.length === 0}
-                                    className="px-3 py-1.5 text-xs font-alata bg-white/5 text-silver hover:bg-gold/10 transition disabled:opacity-40"
-                                    title={language === 'ar' ? 'تنزيل تقرير المخزون كملف Excel/CSV (النتائج المعروضة)' : 'Download inventory as Excel/CSV (filtered results)'}
-                                >
-                                    📦 {language === 'ar' ? 'تقرير المخزون' : 'Inventory report'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => exportInventory(data, language)}
-                                    disabled={data.length === 0}
-                                    className="px-2 py-1.5 text-xs bg-white/5 text-silver/80 hover:bg-gold/10 border-s border-gold/20 transition disabled:opacity-40"
-                                    title={language === 'ar' ? 'طباعة / حفظ PDF' : 'Print / save PDF'}
-                                >🖨</button>
-                            </span>
+                            <button
+                                type="button"
+                                onClick={() => openPreview('inventory')}
+                                disabled={data.length === 0}
+                                className="px-3 py-1.5 rounded-full text-xs font-alata bg-white/5 text-silver border border-gold/20 hover:bg-gold/10 transition disabled:opacity-40"
+                                title={language === 'ar' ? 'معاينة تقرير المخزون ثم تصدير Excel أو طباعة/PDF' : 'Preview inventory, then Excel or Print/PDF'}
+                            >
+                                📦 {language === 'ar' ? 'تقرير المخزون' : 'Inventory report'}
+                            </button>
                         )}
                     </div>
 
@@ -511,6 +495,25 @@ export default function ProductsPage({ params }: ProductsPageProps) {
                     isOpen={isModalOpen} onClose={handleClose} onSuccess={handleSuccess}
                     service={editingProduct} language={language}
                 />
+            )}
+
+            {/* Export preview — in-app A4 preview, then Excel or Print/PDF (no popup) */}
+            {preview && (
+                <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ backgroundColor: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(6px)' }} onClick={() => setPreview(null)} dir={language === 'ar' ? 'rtl' : 'ltr'}>
+                    <div className="bg-[#1a1a1e]/95 rounded-2xl shadow-2xl border border-gold/30 w-full max-w-3xl max-h-[92vh] flex flex-col" onClick={e => e.stopPropagation()}>
+                        <div className="flex justify-between items-center p-4 border-b border-silver/20">
+                            <h2 className="text-lg font-alata text-gold">{language === 'ar' ? 'معاينة التصدير' : 'Export preview'} — {preview.count} {language === 'ar' ? 'عنصر' : 'items'}</h2>
+                            <button type="button" onClick={() => setPreview(null)} className="text-silver p-1 hover:bg-silver/20 rounded">✕</button>
+                        </div>
+                        {/* on-screen preview — identical markup to the printed/PDF output */}
+                        <div className="p-4 overflow-auto bg-black/20" dangerouslySetInnerHTML={{ __html: reportPreviewHtml(preview, language) }} />
+                        <div className="flex flex-wrap justify-end gap-2 p-4 border-t border-silver/20">
+                            <button type="button" onClick={() => setPreview(null)} className="px-4 py-2 rounded-lg bg-silver/10 text-silver text-sm hover:bg-silver/20">{language === 'ar' ? 'إغلاق' : 'Close'}</button>
+                            <button type="button" onClick={() => printReport(preview, language)} className="px-4 py-2 rounded-lg bg-white/10 text-white text-sm hover:bg-white/20">🖨 {language === 'ar' ? 'طباعة / حفظ PDF' : 'Print / Save PDF'}</button>
+                            <button type="button" onClick={() => downloadReportCsv(preview, language, preview.title.includes('مخزون') || preview.title.toLowerCase().includes('inventory') ? 'inventory' : (activeTab === 'products' ? 'products-pricelist' : 'services-pricelist'))} className="px-4 py-2 rounded-lg bg-gold text-darkwhite font-bold text-sm hover:bg-yellow-600">⬇ {language === 'ar' ? 'تصدير Excel (CSV)' : 'Export Excel (CSV)'}</button>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     );
